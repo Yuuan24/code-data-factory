@@ -26,9 +26,11 @@ bash scripts/openbayes/bootstrap.sh
 第二次 bootstrap 和 Linux probe 都通过时，才可写入依赖/Parquet 的 `SOFTWARE_VALIDATED` 证据；这不替代
 后续执行、Ray 或训练门禁。
 
-所有 OpenBayes 测试 checkout 还必须由 GitHub 的非 `main` 候选分支取得；在远端核对 branch SHA 与
-checkout SHA 一致后才可开始测试。只有该精确 SHA 的远端测试全部通过，并且 `origin/main` 未在期间移动，
-才允许 fast-forward 合并到 `main`。完整交付规则见根目录 [AGENTS.md](../../AGENTS.md#github-to-openbayes-test-gate)。
+所有 OpenBayes 测试 checkout 还必须由 GitHub 的非 `main` 候选分支取得；优先在远端核对 branch SHA 与
+checkout SHA 一致后才可开始测试。若 Git smart-HTTP 已记录为有界失败，但 GitHub API 和完整 SHA 的 Codeload
+archive 可用，可使用直接从 GitHub 下载的 exact-commit archive，并记录 API/ref、archive SHA-256 和来源方法。
+只有该精确 SHA 的远端测试全部通过，并且 `origin/main` 未在期间移动，才允许 fast-forward 合并到 `main`。
+完整交付规则见根目录 [AGENTS.md](../../AGENTS.md#github-to-openbayes-test-gate)。
 
 保存环境和依赖清单；数据组件必须真实安装。执行门禁另需无特权受限容器；训练和真实采样另需
 通过模型/预算门禁的资源。不需要建设网页前端、线上调度平台或多 Agent 服务。

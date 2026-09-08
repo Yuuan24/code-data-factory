@@ -63,8 +63,13 @@ For every code, dependency, configuration, or runnable-documentation change:
 2. Stage only the reviewed paths; inspect staged `--stat`, `--name-status`, and `git diff --cached --check` before
    committing. Do not commit credentials, private data, ignored runtime artifacts, or raw remote logs.
 3. Run the appropriate local tests and record their exact scope. Push only the candidate test branch to GitHub.
-4. On OpenBayes, clone or fetch that GitHub branch into a clean test checkout. Record both the remote checkout SHA
-   and the GitHub branch SHA; they must match before testing begins.
+4. On OpenBayes, prefer cloning or fetching that GitHub branch into a clean test checkout. Record both the remote
+   checkout SHA and the GitHub branch SHA; they must match before testing begins. If Git smart-HTTP has a bounded,
+   recorded failure but GitHub's branch-ref API and exact-commit Codeload archive are reachable, an archive fallback
+   is permitted: resolve the branch to its full SHA through the GitHub API, download Codeload by that full SHA (never
+   by a mutable branch name), record the archive SHA-256 and API/ref result, and extract it into a clean test
+   directory. This remains direct GitHub source evidence, but the receipt must say `GITHUB_EXACT_COMMIT_ARCHIVE`
+   rather than claiming a Git checkout SHA.
 5. Run the required remote bootstrap, repeat-start, dependency, and task-specific tests from that GitHub checkout.
    A test against a locally copied checkout cannot satisfy this gate.
 6. If any remote test fails, keep `main` unchanged. Fix on the same or a replacement non-`main` test branch, push
@@ -72,8 +77,9 @@ For every code, dependency, configuration, or runnable-documentation change:
 7. Only after all required remote tests pass, fetch `origin/main` again. If it has moved, rebase or reconstruct the
    candidate on the new tip and repeat the remote test. If it has not moved, fast-forward `main` to the exact tested
    SHA and push it. Do not create an untested merge commit and do not force-push `main`.
-8. Preserve the branch name, tested SHA, remote test commands/results, evidence hashes, and known limitations in the
-   relevant checkpoint or evidence journal. Delete or retain a merged test branch only with an explicit user choice.
+8. Preserve the branch name, tested SHA, source method, remote test commands/results, evidence hashes, and known
+   limitations in the relevant checkpoint or evidence journal. Delete or retain a merged test branch only with an
+   explicit user choice.
 
 This gate is a delivery rule, not proof of stronger evidence. Dependency/Parquet checks remain
 `SOFTWARE_VALIDATED`; isolated execution, distributed processing, training, and model-value claims retain their

@@ -131,16 +131,19 @@ Linux 与 CPython 3.12，并与当前 `uv.lock` 身份绑定；不得复制 macO
 ## 7. GitHub 来源测试与 `main` 合并门禁
 
 远端 Linux 测试的源码必须来自 GitHub 的非 `main` 候选分支，而不是 Mac 工作区归档或 SCP 复制。一次
-候选的最小可审计身份是 `branch_name`、GitHub candidate SHA、OpenBayes checkout SHA 和锁文件 SHA；测试
-开始前前两项 SHA 必须一致。
+候选的最小可审计身份是 `branch_name`、GitHub candidate SHA、来源方法、锁文件 SHA，以及 Git checkout SHA
+或 GitHub exact-commit archive SHA-256。Git checkout 测试开始前 checkout SHA 必须等于 GitHub candidate SHA。
 
 标准顺序如下：
 
 1. 从新鲜 `origin/main` 创建命名清晰的非 `main` 测试分支；所有代码、依赖、配置和可运行文档只在该分支
    提交。
 2. 本地只暂存审计过的路径，运行适当的本地检查，再把候选分支推送到 GitHub。
-3. OpenBayes 在独立、干净的测试 checkout 中从 GitHub clone/fetch 该分支，核对 checkout SHA 与 GitHub
-   candidate SHA 一致后，才执行 bootstrap、第二次 bootstrap、依赖检查、Linux probe 及该任务要求的测试。
+3. OpenBayes 优先在独立、干净的测试 checkout 中从 GitHub clone/fetch 该分支，核对 checkout SHA 与 GitHub
+   candidate SHA 一致后，才执行测试。若 Git smart-HTTP 在有界时间内失败、但 GitHub API 可解析 branch ref
+   且 Codeload 可下载完整 candidate SHA，则可改为 `GITHUB_EXACT_COMMIT_ARCHIVE`：记录 API branch-ref SHA、
+   exact-commit API 结果、完整 SHA 的 Codeload URL、archive SHA-256 和解压目录；不得下载可变 branch archive。
+   两种来源方法均须在干净目录执行 bootstrap、第二次 bootstrap、依赖检查、Linux probe 及任务要求的测试。
 4. 任一远端检查失败时，`main` 不变；修复后的新 SHA 必须重新推送、重新从 GitHub 获取并重测。
 5. 全部远端检查成功后，再次获取 `origin/main`。若它移动，候选必须基于新 tip 重建并重测；若未移动，
    仅允许将 `main` fast-forward 到同一个已测 SHA 后推送。禁止把未测 merge commit、远端本地副本或
