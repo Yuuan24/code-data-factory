@@ -49,3 +49,32 @@ Never promote a candidate evidence summary without the evidence level required b
 A user-story checkpoint is not complete until its acceptance evidence and journal review are both present. The
 implementing agent must update an existing `CH-###` entry, create a new one, or add an explicit no-new-challenge
 checkpoint receipt with the reviewed task and artifact IDs.
+
+## GitHub-to-OpenBayes Test Gate
+
+The repository default branch is `main`; treat it as the protected integration branch even when repository settings
+do not technically enforce protection. A rented OpenBayes test is valid for merge only when its checkout was fetched
+from GitHub at the exact candidate commit. Copying a Mac working tree to OpenBayes is not GitHub-branch test evidence.
+
+For every code, dependency, configuration, or runnable-documentation change:
+
+1. Start from a freshly fetched `origin/main`, create a descriptively named non-`main` test branch, and make all
+   changes there. Do not commit directly on `main`.
+2. Stage only the reviewed paths; inspect staged `--stat`, `--name-status`, and `git diff --cached --check` before
+   committing. Do not commit credentials, private data, ignored runtime artifacts, or raw remote logs.
+3. Run the appropriate local tests and record their exact scope. Push only the candidate test branch to GitHub.
+4. On OpenBayes, clone or fetch that GitHub branch into a clean test checkout. Record both the remote checkout SHA
+   and the GitHub branch SHA; they must match before testing begins.
+5. Run the required remote bootstrap, repeat-start, dependency, and task-specific tests from that GitHub checkout.
+   A test against a locally copied checkout cannot satisfy this gate.
+6. If any remote test fails, keep `main` unchanged. Fix on the same or a replacement non-`main` test branch, push
+   the new candidate SHA, and repeat the GitHub-to-OpenBayes test from a clean checkout.
+7. Only after all required remote tests pass, fetch `origin/main` again. If it has moved, rebase or reconstruct the
+   candidate on the new tip and repeat the remote test. If it has not moved, fast-forward `main` to the exact tested
+   SHA and push it. Do not create an untested merge commit and do not force-push `main`.
+8. Preserve the branch name, tested SHA, remote test commands/results, evidence hashes, and known limitations in the
+   relevant checkpoint or evidence journal. Delete or retain a merged test branch only with an explicit user choice.
+
+This gate is a delivery rule, not proof of stronger evidence. Dependency/Parquet checks remain
+`SOFTWARE_VALIDATED`; isolated execution, distributed processing, training, and model-value claims retain their
+separate gates.

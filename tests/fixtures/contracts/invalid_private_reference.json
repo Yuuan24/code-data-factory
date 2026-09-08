@@ -1,0 +1,5 @@
+{
+  "fixture": "private_reference_in_model_context",
+  "expected": "REJECT",
+  "reason": "instruction_ref must be MODEL_VISIBLE, not VERIFIER_PRIVATE"
+}

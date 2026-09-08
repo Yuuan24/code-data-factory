@@ -1,0 +1,6 @@
+{
+  "fixture": "out_of_order_events",
+  "expected": "REJECT",
+  "seq": [1, 0],
+  "reason": "event sequence must be strictly increasing"
+}

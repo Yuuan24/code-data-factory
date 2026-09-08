@@ -1,0 +1,4 @@
+{
+  "name": "verifications",
+  "schema": "verification_id: string\nattempt_id: string\nstatus: string\noutcome: string"
+}

@@ -1,17 +1,34 @@
 # Quickstart Validation Guide: 轨迹数据产线
 
-**Revision**: 2.0 | **Status**: 实现后的验收指南；当前没有 `pyproject.toml`、`cdf` 或以下配置/夹具。
-本次只交付设计文档，下面命令不能被描述为已经运行成功。命令契约见 [contracts/cli.md](contracts/cli.md)。
+**Revision**: 2.0 | **Status**: T001–T012 的基础包、锁、契约和 Linux 依赖读写证据已完成；后续数据、
+隔离执行、Ray、真实采样和训练任务仍未完成。命令契约见 [contracts/cli.md](contracts/cli.md)。
 
 ## 1. Prerequisites and Reproducible Setup
 
-实施后在 Linux、具有固定依赖锁和授权来源数据的检出目录执行：
+本地开发在具有固定依赖锁和授权来源数据的检出目录执行：
 
 ```bash
 uv sync --frozen
 uv run cdf --help
 uv run pytest tests/contract
 ```
+
+对于新建或重新分配的 OpenBayes Linux 实例，先遵守
+[租用 Linux 环境恢复与依赖验证契约](contracts/rented-environment-recovery.md)：先分类 workspace、再做有
+时间上限的镜像与实际 artifact 路径预检，然后从 `/openbayes/home/code-data-factory` 运行：
+
+```bash
+bash scripts/openbayes/bootstrap.sh
+bash scripts/openbayes/bootstrap.sh
+/openbayes/home/.pylibs/bin/uv pip check --python .venv/bin/python
+```
+
+第二次 bootstrap 和 Linux probe 都通过时，才可写入依赖/Parquet 的 `SOFTWARE_VALIDATED` 证据；这不替代
+后续执行、Ray 或训练门禁。
+
+所有 OpenBayes 测试 checkout 还必须由 GitHub 的非 `main` 候选分支取得；在远端核对 branch SHA 与
+checkout SHA 一致后才可开始测试。只有该精确 SHA 的远端测试全部通过，并且 `origin/main` 未在期间移动，
+才允许 fast-forward 合并到 `main`。完整交付规则见根目录 [AGENTS.md](../../AGENTS.md#github-to-openbayes-test-gate)。
 
 保存环境和依赖清单；数据组件必须真实安装。执行门禁另需无特权受限容器；训练和真实采样另需
 通过模型/预算门禁的资源。不需要建设网页前端、线上调度平台或多 Agent 服务。

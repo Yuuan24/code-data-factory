@@ -1,0 +1,15 @@
+{
+  "task_id": "fixture-task-1",
+  "task_revision": "1",
+  "source_record_ids": ["fixture-source-1"],
+  "task_family": "lookup",
+  "template_family_id": "fixture-template-1",
+  "source_group_ids": ["fixture-source-group"],
+  "derivation_root_ids": ["fixture-root-1"],
+  "usage_scope": "TRAIN",
+  "split_group_id": "fixture-split-1",
+  "split_policy_version": "1",
+  "dependency_depth": 1,
+  "tool_set": ["search_documents"],
+  "status": "DRAFT"
+}

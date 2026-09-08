@@ -1,0 +1,4 @@
+{
+  "name": "attempts",
+  "schema": "attempt_id: string\ntask_id: string\nactor_kind: string\nend_reason: string\nstate: string"
+}

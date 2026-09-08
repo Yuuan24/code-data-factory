@@ -1,0 +1,7 @@
+{
+  "fixture": "multi_turn_attempt",
+  "expected": "ACCEPT",
+  "attempt_id": "fixture-attempt-1",
+  "model_call_ids": ["call-1", "call-2"],
+  "note": "one attempt has multiple model calls; it is not two task identities"
+}

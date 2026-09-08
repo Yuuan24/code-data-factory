@@ -160,6 +160,13 @@
 首版不做通用图形界面操作、办公文件视觉排版、网页反爬、底层存储研发、多模态训练、服务平台或
 自训练算法研究。正式 RL 和长程能力收益实验属于后续阶段；它们的接口和数据兼容验收属于首版。
 
+### 租用 Linux 恢复与依赖验证边界
+
+T003/T012 的 Linux 依赖证据必须遵守[租用 Linux 环境恢复与依赖验证契约](contracts/rented-environment-recovery.md)。
+租用实例的持久目录只在实际复用同一 workspace/storage identity 时可作为缓存；新实例必须从独立保留的
+源码与锁文件恢复。依赖安装和 Parquet 读写通过仅构成 `SOFTWARE_VALIDATED`，不得升级为隔离执行、
+分布式处理、训练或模型价值结论。
+
 ### Functional Requirements
 
 功能需求（Functional Requirement，FR）必须由下列成功标准及对应用户故事验收。

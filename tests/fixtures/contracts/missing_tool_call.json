@@ -1,0 +1,5 @@
+{
+  "fixture": "tool_result_without_call",
+  "expected": "REJECT",
+  "reason": "TOOL_RESULT must reference a TOOL_CALL in the same attempt"
+}

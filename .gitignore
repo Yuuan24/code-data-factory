@@ -1,2 +1,19 @@
 # Local-only project notes that must never enter the public repository.
 /.private/
+/.codex/
+/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local data, model and run facts are tracked through manifests/DVC, never Git.
+/data/raw/
+/data/normalized/
+/data/releases/
+/data/exports/
+/artifacts/
+/reports/
+/models/
+*.log

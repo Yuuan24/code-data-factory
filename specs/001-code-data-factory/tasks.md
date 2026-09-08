@@ -38,10 +38,10 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 
 **Purpose**: 最小包、可重复依赖和开发检查；不创建空平台或占位业务成功结果。
 
-- [ ] T001 创建 Python 3.12 包和 `cdf` 入口声明于 `pyproject.toml`、`src/code_data_factory/__init__.py`，分离数据、交互、训练依赖组；用 `uv` 管理，不预建空服务或通用基类。（依赖：无）
-- [ ] T002 [P] 在 `ruff.toml`、`mypy.ini`、`tests/conftest.py` 配置静态检查与临时目录测试约定，区分离线契约和需真实资源的测试标记。（依赖：T001）
-- [ ] T003 [P] 按 research 的组件门禁解析正式版本并生成 `uv.lock`、`artifacts/dependencies/dependency_manifest.json`，记录官方版本/许可/安全审查及 Linux 安装读写探针；若缺 Linux 只留未完成记录，不把本机安装当通过。（依赖：T001）
-- [ ] T004 初始化 DVC 的项目元数据 `.dvc/config`、`.dvcignore` 和 `.gitignore`，保护 `.private/`、`.codex/`、原料、模型与日志；验证现有忽略规则不被覆盖，数据/运行事实不依赖远程服务。（依赖：T002、T003）
+- [X] T001 创建 Python 3.12 包和 `cdf` 入口声明于 `pyproject.toml`、`src/code_data_factory/__init__.py`，分离数据、交互、训练依赖组；用 `uv` 管理，不预建空服务或通用基类。（依赖：无）
+- [X] T002 [P] 在 `ruff.toml`、`mypy.ini`、`tests/conftest.py` 配置静态检查与临时目录测试约定，区分离线契约和需真实资源的测试标记。（依赖：T001）
+- [X] T003 [P] 按 research 的组件门禁解析正式版本并生成 `uv.lock`、`artifacts/dependencies/dependency_manifest.json`，记录官方版本/许可/安全审查及 Linux 安装读写探针；若缺 Linux 只留未完成记录，不把本机安装当通过。远端恢复遵守[租用 Linux 环境恢复与依赖验证契约](contracts/rented-environment-recovery.md)。（依赖：T001）
+- [X] T004 初始化 DVC 的项目元数据 `.dvc/config`、`.dvcignore` 和 `.gitignore`，保护 `.private/`、`.codex/`、原料、模型与日志；验证现有忽略规则不被覆盖，数据/运行事实不依赖远程服务。（依赖：T002、T003）
 
 **Checkpoint**: 包与依赖可重现，离线测试入口可用；尚不声称数据、采样或训练完成。
 
@@ -49,14 +49,14 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 
 **Purpose**: 多个故事共享的最小实体、事实保存和资源门禁；不把全部业务塞入基础层。
 
-- [ ] T005 在 `tests/fixtures/contracts/` 建立手写正确/错误记录，覆盖独立任务、多轮尝试、调用乱序/缺失、未知判定、旧主版本和私有参考；在 `tests/contract/test_core_records.py` 声明预期拒绝规则。（依赖：T004）
-- [ ] T006 在 `src/code_data_factory/contracts/tasks.py` 定义来源、产物引用、任务包、能力声明与切分组的 Pydantic 模型，约束任务独立于示范、来源/模板根和模型可见/验证私有资源分离。（依赖：T005）
-- [ ] T007 在 `src/code_data_factory/contracts/trajectory.py` 定义 Attempt、事件、上下文和依赖边，区分 attempt_id/model_call_id，保留 MODEL_GENERATION 等五类执行者及不完整中断尾部。（依赖：T006）
-- [ ] T008 在 `src/code_data_factory/contracts/verification.py`、`src/code_data_factory/contracts/schema_export.py` 定义独立验证/奖励、证据层级和 Arrow 模式导出至 `schemas/2.0.0/`，确保封存尝试不回写 outcome，未知奖励不填零。（依赖：T007）
-- [ ] T009 在 `src/code_data_factory/contracts/artifacts.py` 实现规范序列化、物理/逻辑哈希、产物引用检查及原子清单提交；用 `tests/contract/test_artifact_integrity.py` 验证篡改、重入和半提交拒绝。（依赖：T008）
-- [ ] T010 在 `src/code_data_factory/contracts/resources.py`、`configs/execution/resource-policy.yaml` 实现共用报价/授权引用/停止上限与费用台账，分别记录 CPU、GPU、存储和外部模型失败重试费用，缺授权或报价禁止外部运行。（依赖：T009）
-- [ ] T011 在 `src/code_data_factory/cli.py` 实现统一结构化输出、错误码 0/2–8、标准错误日志和 dry-run 语义；在 `tests/contract/test_cli_envelope.py` 验证尚未实现的业务不能返回伪成功。（依赖：T010）
-- [ ] T012 运行核心契约与模式兼容验证，保存 `artifacts/checkpoints/foundation.json`，同期在 `docs/evidence-journal.md` 记录身份/状态/哈希取舍或无新增问题回执。（依赖：T011）
+- [X] T005 在 `tests/fixtures/contracts/` 建立手写正确/错误记录，覆盖独立任务、多轮尝试、调用乱序/缺失、未知判定、旧主版本和私有参考；在 `tests/contract/test_core_records.py` 声明预期拒绝规则。（依赖：T004）
+- [X] T006 在 `src/code_data_factory/contracts/tasks.py` 定义来源、产物引用、任务包、能力声明与切分组的 Pydantic 模型，约束任务独立于示范、来源/模板根和模型可见/验证私有资源分离。（依赖：T005）
+- [X] T007 在 `src/code_data_factory/contracts/trajectory.py` 定义 Attempt、事件、上下文和依赖边，区分 attempt_id/model_call_id，保留 MODEL_GENERATION 等五类执行者及不完整中断尾部。（依赖：T006）
+- [X] T008 在 `src/code_data_factory/contracts/verification.py`、`src/code_data_factory/contracts/schema_export.py` 定义独立验证/奖励、证据层级和 Arrow 模式导出至 `schemas/2.0.0/`，确保封存尝试不回写 outcome，未知奖励不填零。（依赖：T007）
+- [X] T009 在 `src/code_data_factory/contracts/artifacts.py` 实现规范序列化、物理/逻辑哈希、产物引用检查及原子清单提交；用 `tests/contract/test_artifact_integrity.py` 验证篡改、重入和半提交拒绝。（依赖：T008）
+- [X] T010 在 `src/code_data_factory/contracts/resources.py`、`configs/execution/resource-policy.yaml` 实现共用报价/授权引用/停止上限与费用台账，分别记录 CPU、GPU、存储和外部模型失败重试费用，缺授权或报价禁止外部运行。（依赖：T009）
+- [X] T011 在 `src/code_data_factory/cli.py` 实现统一结构化输出、错误码 0/2–8、标准错误日志和 dry-run 语义；在 `tests/contract/test_cli_envelope.py` 验证尚未实现的业务不能返回伪成功。（依赖：T010）
+- [X] T012 运行核心契约与模式兼容验证，保存 `artifacts/checkpoints/foundation.json`，同期在 `docs/evidence-journal.md` 记录身份/状态/哈希取舍或无新增问题回执；远端回执字段和证据层级遵守[租用 Linux 环境恢复与依赖验证契约](contracts/rented-environment-recovery.md)。（依赖：T011）
 
 **Checkpoint**: 基础契约通过，旧版本/歧义关联/私有参考/未知奖励都不能静默晋级。
 
