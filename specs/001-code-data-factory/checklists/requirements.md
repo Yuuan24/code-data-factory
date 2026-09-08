@@ -1,45 +1,45 @@
-# Specification Quality Checklist: Code Data Factory
+# Specification Quality Checklist: Agent 工具调用轨迹数据工厂
 
-**Purpose**: Validate specification completeness and quality before proceeding to planning
-
-**Created**: 2026-09-04
-
+**Purpose**: 审查规格 2.0 的需求完整性；勾选只表示文档质量通过，不表示功能、实验或数据规模已完成。
+**Created**: 2026-09-08
 **Feature**: [spec.md](../spec.md)
 
 ## Content Quality
 
-- [x] Technology details are limited to the user-mandated Ray capability and its testable evidence boundary
-- [x] Focused on user value and business needs
-- [x] Written for non-technical stakeholders
-- [x] All mandatory sections completed
+- [x] 无非必要实现细节；组件和接口选择集中于 plan/research/contracts，Linux 为用户明确运行约束。
+- [x] 聚焦数据生产、质量、分布式处理、治理、交付、反馈与归因价值。
+- [x] 使用可理解的查询、计算与转换任务，用户故事不依赖专有业务知识。
+- [x] 完成用户场景、边界、功能需求、实体、成功标准及假设。
 
 ## Requirement Completeness
 
-- [x] No [NEEDS CLARIFICATION] markers remain
-- [x] Requirements are testable and unambiguous
-- [x] Success criteria are measurable
-- [x] Success criteria are outcome-focused; Ray appears only where the user explicitly requires Ray practice
-- [x] All acceptance scenarios are defined
-- [x] Edge cases are identified
-- [x] Scope is clearly bounded
-- [x] Dependencies and assumptions identified
+- [x] 无待澄清的范围标记；未完成的资源/数据验证被定义为有明确失败动作的实施门禁。
+- [x] 40 条功能需求均可测试且有对应成功标准。
+- [x] 15 项成功标准包含数量、分母、通过条件与证据产物。
+- [x] 成功标准描述可观察行为，未以某个框架名称代替价值或验证。
+- [x] 六个用户故事都有独立测试与 Given/When/Then 验收场景。
+- [x] 覆盖调用歧义、假成功、未知奖励、截断、上下文改写、恢复、污染及分布式重试。
+- [x] 首版与后续训练范围清楚；RL/长程兼容首版必需，正式 RL 优化后续开展。
+- [x] 来源、资源、开源依赖与时间假设有说明，不把公开数据总量当合格产量。
 
 ## Feature Readiness
 
-- [x] All functional requirements have clear acceptance criteria
-- [x] User scenarios cover primary flows
-- [x] Feature meets measurable outcomes defined in Success Criteria
-- [x] No implementation details beyond the explicit Ray constraint leak into specification
+- [x] FR-001–040 由 SC-001–015 的需求映射覆盖。
+- [x] 场景覆盖任务/轨迹生产、验证、治理、反馈、训练度量和扩展。
+- [x] 数据结果、软件适配、真实采样、隔离执行与训练证据分别验收。
+- [x] 规格未强制通用 Agent、调度、去重或训练框架自研。
 
-## Notes
+## Migration and Consistency Review
 
-- Validation completed in one review iteration.
-- The specification contains five independently testable user stories, 42 functional requirements,
-  and 14 measurable success criteria.
-- Real training and safe execution are conditional dependencies with explicit fail-closed evidence
-  behavior; their absence does not create an unsupported model-improvement claim.
-- Except for the user-mandated Ray requirement, project-specific technology choices, exact experiment recipes,
-  and weekly scheduling remain in the planning phase.
-- The cutoff defined by FR-005 applies to current large-model research and method evidence, not to the
-  publication date of Python or other open-source components; component evaluation remains a
-  planning concern.
+- [x] 旧代码目标、主指标、外部基准、上下文和模型备选的替换在 plan 迁移表显式记录。
+- [x] 两配方三种子、固定预算、负结果、谱系和多节点验收保留。
+- [x] 目标干预与匹配字段分开；粗任务族可跨集合，同源/模板派生组不可跨集合。
+- [x] 首版真实采样即保留真实词元；模型输出控制/结束词元按冻结模板训练。
+- [x] 旧 tasks 已由 2.0 任务清单替换，data-model/contracts/quickstart/research 同属新版；任务勾选不继承旧编号。
+- [x] 优先使用现成开源能力；详细职位映射保留本地，公开资料只陈述工程职责。
+
+## Review Notes
+
+本轮审阅修复：任务族切分与覆盖冲突；聚类统计单位不明确；误排输出控制词元；真实采样字段被
+误列为仅后续工作；多轮调用与整任务尝试身份混淆；封存尝试与后评分冲突；正式生成者类型缺失；
+先导构建输入未引用真实验证结果。上述问题均已在契约/指南中修正。后续实施仍须通过 SC-001–015，不以本清单替代任何运行证据。
