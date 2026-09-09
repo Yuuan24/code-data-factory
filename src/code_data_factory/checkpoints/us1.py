@@ -60,6 +60,18 @@ def _fixture_history() -> list[dict[str, Any]]:
     ]
 
 
+def _required_object(path: Path, *, label: str, required_keys: set[str]) -> dict[str, Any]:
+    import json
+
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ValueError(f"US1 checkpoint cannot read {label}") from error
+    if not isinstance(value, dict) or not required_keys <= set(value):
+        raise ValueError(f"US1 checkpoint {label} lacks required evidence fields")
+    return value
+
+
 def run_us1_software_checkpoint(
     *,
     output_path: Path,
@@ -73,6 +85,23 @@ def run_us1_software_checkpoint(
     required = (source_report, dedup_review_summary, equivalence_manifest, task_config)
     if any(not path.is_file() for path in required):
         raise ValueError("US1 checkpoint requires source, dedup, equivalence, and task-config inputs")
+    source_evidence = _required_object(source_report, label="source report", required_keys={"sources"})
+    dedup_evidence = _required_object(
+        dedup_review_summary,
+        label="dedup review summary",
+        required_keys={"reviewed_candidate_pairs", "reviewed_probe_pairs", "review_sha256"},
+    )
+    equivalence_evidence = _required_object(
+        equivalence_manifest,
+        label="equivalence manifest",
+        required_keys={"local_hash", "ray_hash", "full_hash", "incremental_hash", "precommit_recovery", "postcommit_recovery"},
+    )
+    if not isinstance(source_evidence["sources"], list) or not source_evidence["sources"]:
+        raise ValueError("US1 checkpoint source report has no audited sources")
+    if dedup_evidence["reviewed_candidate_pairs"] < 100 or dedup_evidence["reviewed_probe_pairs"] < 100:
+        raise ValueError("US1 checkpoint requires one hundred candidate and probe reviews")
+    if equivalence_evidence["local_hash"] != equivalence_evidence["ray_hash"] or equivalence_evidence["full_hash"] != equivalence_evidence["incremental_hash"]:
+        raise ValueError("US1 checkpoint equivalence hashes disagree")
     with TemporaryDirectory(prefix="cdf-us1-checkpoint-") as temporary:
         root = Path(temporary)
         history_path = root / "history.json"
