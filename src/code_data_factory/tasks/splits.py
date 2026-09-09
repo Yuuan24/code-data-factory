@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -26,6 +28,7 @@ class AssignmentResult:
     assignments: list[SplitAssignment]
     conflicts: list[BridgeConflict]
     quarantined_task_ids: list[str]
+    invalidated_task_ids: tuple[str, ...] = ()
 
 
 class SplitRegistry:
@@ -38,6 +41,38 @@ class SplitRegistry:
 
     def freeze(self, assignments: dict[str, str]) -> None:
         self.frozen_assignments.update(assignments)
+
+    @classmethod
+    def load(cls, path: Path) -> SplitRegistry:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, dict) or not isinstance(payload.get("policy_version"), str):
+            raise ValueError("split registry must have a policy_version")
+        assignments = payload.get("frozen_assignments")
+        if not isinstance(assignments, dict) or not all(
+            isinstance(task_id, str) and isinstance(scope, str) for task_id, scope in assignments.items()
+        ):
+            raise ValueError("split registry must have string frozen assignments")
+        registry = cls(policy_version=payload["policy_version"])
+        registry.freeze(assignments)
+        return registry
+
+    def write(self, path: Path, *, result: AssignmentResult) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(
+                {
+                    "policy_version": self.policy_version,
+                    "frozen_assignments": dict(sorted(self.frozen_assignments.items())),
+                    "new_assignments": [item.__dict__ for item in result.assignments],
+                    "bridge_conflicts": [item.__dict__ for item in result.conflicts],
+                    "quarantined_task_ids": result.quarantined_task_ids,
+                    "invalidated_task_ids": list(result.invalidated_task_ids),
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
+            encoding="utf-8",
+        )
 
     @staticmethod
     def _scope(group_id: str) -> str:
@@ -112,4 +147,10 @@ class SplitRegistry:
                     assignment = SplitAssignment(task_id=task_id, scope=scope, split_group_id=group_id)
                     self.assignments.append(assignment)
                     assignments.append(assignment)
-        return AssignmentResult(assignments=assignments, conflicts=conflicts, quarantined_task_ids=quarantined)
+        invalidated = tuple(sorted({related for conflict in conflicts for related in conflict.related_task_ids}))
+        return AssignmentResult(
+            assignments=assignments,
+            conflicts=conflicts,
+            quarantined_task_ids=quarantined,
+            invalidated_task_ids=invalidated,
+        )

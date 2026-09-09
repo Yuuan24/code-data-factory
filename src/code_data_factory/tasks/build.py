@@ -199,18 +199,7 @@ def build_pilot_tasks(
     )
     (output_dir / "attempt_manifest.json").write_bytes(canonical_json_bytes({"attempts": attempts}))
     (output_dir / "verification_manifest.json").write_bytes(canonical_json_bytes({"verifications": verifications}))
-    (output_dir / "split_registry.json").write_bytes(
-        canonical_json_bytes(
-            {
-                "policy_version": split_registry.policy_version,
-                "assignments": [
-                    {"task_id": item.task_id, "usage_scope": item.scope, "split_group_id": item.split_group_id}
-                    for item in assigned.assignments
-                ],
-                "quarantined_task_ids": assigned.quarantined_task_ids,
-            }
-        )
-    )
+    split_registry.write(output_dir / "split_registry.json", result=assigned)
     (output_dir / "pilot.json").write_bytes(
         canonical_json_bytes(
             {

@@ -10,6 +10,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, logical_content_hash
+from code_data_factory.datasets.quality_reports import quality_report
 
 
 class PublicationGateError(ValueError):
@@ -69,7 +70,9 @@ def publish_dataset(
     pq.write_table(pa.Table.from_pylist(members), path / "membership.parquet")
     (path / "dataset_manifest.json").write_bytes(manifest_bytes)
     (path / "recipe.json").write_bytes(canonical_json_bytes({"rule_version": rule_version}))
-    (path / "quality_report.json").write_bytes(canonical_json_bytes({"accepted": len(members)}))
+    (path / "quality_report.json").write_bytes(
+        canonical_json_bytes(quality_report(path / "membership.parquet"))
+    )
     (path / "diversity_report.json").write_bytes(canonical_json_bytes({"unique_tasks": len({item['task_id'] for item in members})}))
     (path / "cost_report.json").write_bytes(canonical_json_bytes({"cost_cny_fen": None}))
     (path / "lineage_index.json").write_bytes(canonical_json_bytes({"source_records": sorted({source for item in members for source in item['source_record_ids']})}))

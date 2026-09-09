@@ -42,6 +42,21 @@ def test_bridge_between_frozen_scopes_is_quarantined_not_reshuffled() -> None:
     ]
     assert result.quarantined_task_ids == ["bridge"]
     assert registry.frozen_assignments == {"a": "TRAIN", "b": "TEST"}
+    assert result.invalidated_task_ids == ("a", "b")
+
+
+def test_split_registry_persists_frozen_assignments_and_conflict_receipt(tmp_path: Path) -> None:
+    registry = SplitRegistry(policy_version="split-v1")
+    result = registry.assign(
+        [{"task_id": "a", "source_groups": ["source-1"], "template_root": "template-a"}]
+    )
+    path = tmp_path / "split_registry.json"
+    registry.write(path, result=result)
+
+    restored = SplitRegistry.load(path)
+
+    assert restored.policy_version == "split-v1"
+    assert restored.frozen_assignments == registry.frozen_assignments
 
 
 def test_incremental_and_full_commit_are_equivalent_and_recover_after_precommit_failure(

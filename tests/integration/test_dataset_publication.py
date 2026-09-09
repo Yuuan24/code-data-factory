@@ -131,6 +131,13 @@ def test_quality_report_recomputes_quality_and_unknown_counts_from_membership(tm
         "independent_task_count": 1,
         "attempt_count": 1,
         "accepted_count": 1,
+        "rejected_count": 0,
+        "quarantined_count": 0,
         "verified_pass_count": 1,
         "unknown_outcome_count": 0,
+        "train_member_count": 0,
+        "development_member_count": 0,
+        "test_member_count": 1,
+        "cost_cny_fen": None,
+        "cost_cny_fen_per_accepted_member": None,
     }
