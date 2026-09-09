@@ -18,6 +18,8 @@ from code_data_factory.datasets.build import build_draft
 from code_data_factory.datasets.build_input import BuildInputError, load_build_input
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
+from code_data_factory.interaction.environment import check_environment
+from code_data_factory.interaction.replay import inspect_manifest
 from code_data_factory.sources.audit import audit_sources, freeze_document_sources
 from code_data_factory.sources.revoke import revoke_source
 from code_data_factory.sources.toucan import import_toucan_records, write_import_result
@@ -68,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--backend", choices=("local", "ray"))
     parser.add_argument("--draft", type=Path)
     parser.add_argument("--dataset", type=Path)
+    parser.add_argument("--tasks", type=Path)
+    parser.add_argument("--attempts", type=Path)
     parser.add_argument("--resume")
     parser.add_argument("--source-record-id")
     parser.add_argument("command", nargs="*")
@@ -116,6 +120,44 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
     if parsed.dry_run:
         return CommandEnvelope(command, run_id, "VALIDATED", "UNVERIFIED", [], {}, [], [])
     output = _require_output(parsed)
+    if parsed.command == ["environment", "check"]:
+        if parsed.config is None:
+            raise ValueError("environment check requires --config")
+        preflight = check_environment(parsed.config)
+        output.mkdir(parents=True, exist_ok=True)
+        preflight_path = output / "preflight.json"
+        preflight_path.write_text(
+            json.dumps({"status": preflight.status, "findings": preflight.findings}, sort_keys=True),
+            encoding="utf-8",
+        )
+        if preflight.status != "PASSED":
+            return CommandEnvelope(
+                command,
+                run_id,
+                "GATE_FAILED",
+                "UNVERIFIED",
+                [str(preflight_path)],
+                {},
+                ["Linux non-root restricted container preflight did not pass"],
+                [],
+            )
+        return _completed(command, run_id, [preflight_path], {"checks": len(preflight.findings)})
+    if parsed.command == ["trajectory", "inspect"]:
+        manifest_path = parsed.attempts or parsed.input
+        if manifest_path is None:
+            raise ValueError("trajectory inspect requires --attempts")
+        inspection = inspect_manifest(manifest_path)
+        output.mkdir(parents=True, exist_ok=True)
+        inspect_path = output / "inspection.json"
+        inspect_path.write_text(json.dumps(inspection, sort_keys=True), encoding="utf-8")
+        event_count = inspection["event_count"]
+        if not isinstance(event_count, int):
+            raise ValueError("trajectory inspection returned an invalid event count")
+        return _completed(command, run_id, [inspect_path], {"events": event_count})
+    if parsed.command in (["trajectory", "collect"], ["trajectory", "replay"], ["verify", "run"]):
+        raise ValueError(
+            f"{command} is fail-closed until a verified execution environment and its task-specific input manifest are supplied"
+        )
     if parsed.command == ["source", "audit"]:
         if parsed.manifest is None:
             raise ValueError("source audit requires --manifest")
@@ -219,7 +261,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _emit(CommandEnvelope(command, run_id, "DEPENDENCY_ERROR", "UNVERIFIED", [], {}, [], [str(error)]), parsed.json)
         return EXIT_DEPENDENCY_ERROR
     _emit(envelope, parsed.json)
-    return 0
+    return EXIT_GATE_FAILED if envelope.status == "GATE_FAILED" else 0
 
 
 if __name__ == "__main__":

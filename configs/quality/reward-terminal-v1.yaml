@@ -1,0 +1,4 @@
+policy_version: reward-terminal-v1
+pass_reward: 1
+fail_reward: 0
+unknown_reward: null

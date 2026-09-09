@@ -1,0 +1,8 @@
+container_runtime: podman
+network_default: disabled
+read_only_root: true
+privileged: false
+limits:
+  cpu_seconds: 120
+  memory_mib: 1024
+  pids: 64

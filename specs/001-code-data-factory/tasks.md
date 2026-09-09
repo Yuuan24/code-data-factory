@@ -101,20 +101,20 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 
 ### Tests
 
-- [ ] T033 [US2] 在 `tests/contract/test_interaction.py` 编写多调用对应、隐藏工具拒绝、实际可见上下文、额外终答预算和封存后独立评分的契约测试。（依赖：T012）
-- [ ] T034 [US2] 在 `tests/fixtures/verification/` 准备七类各至少五个独立金标准案例，并在 `tests/integration/test_verifier_controls.py` 验证错参数/错依赖/假成功/截断/环境故障/未知和两条合法不同路径。（依赖：T033）
+- [X] T033 [US2] 在 `tests/contract/test_interaction.py` 编写多调用对应、隐藏工具拒绝、实际可见上下文、额外终答预算和封存后独立评分的契约测试。（依赖：T012）
+- [X] T034 [US2] 在 `tests/fixtures/verification/` 准备七类各至少五个独立金标准案例，并在 `tests/integration/test_verifier_controls.py` 验证错参数/错依赖/假成功/截断/环境故障/未知和两条合法不同路径。（依赖：T033）
 
 ### Implementation
 
-- [ ] T035 [US2] 在 `src/code_data_factory/interaction/tools.py` 复用 DuckDB 全文检索、decimal、zoneinfo 与 Pint 包装四个受限工具，冻结单位/时区/资料版本；运算枚举与数值入参，不引入任意代码解释器。（依赖：T017、T034）
-- [ ] T036 [US2] 在 `src/code_data_factory/interaction/environment.py`、`configs/execution/local-tools.yaml` 实现独立会话与 Linux 非特权只读容器/资源/默认断网检查，模型在外部受控调用；不写沙箱内核，环境不合格不能晋级。（依赖：T035）
-- [ ] T037 [US2] 在 `src/code_data_factory/interaction/smolagents_adapter.py` 使用 ToolCallingAgent 和步骤回调，包装实际模型请求/原始输出，关闭隐式规划及无关工具，绑定独立会话而非重写 Agent 循环。（依赖：T036）
-- [ ] T038 [US2] 在 `src/code_data_factory/interaction/budgets.py`、`configs/execution/collect.yaml` 实现调用前预算守卫，覆盖批量工具/辅助终答；初始限制按 plan 的 8 次、4096/8192 词元、8192/65536 字节和 120 秒，超限明确记录。（依赖：T037）
-- [ ] T039 [US2] 在 `src/code_data_factory/interaction/events.py` 实现实际请求/输出/调用/返回的事件落地、完整与不完整尾部封存、取消/中断/环境故障，重试只限安全动作且不复用整任务身份。（依赖：T038）
-- [ ] T040 [US2] 在 `src/code_data_factory/verification/tasks.py`、`configs/quality/verifier.yaml` 实现独立结果值/引用/约束断言及依赖诊断，使用固定真值/独立公式；未知/不稳定不给确定判定，验证器不暴露为模型工具。（依赖：T039）
-- [ ] T041 [US2] 在 `src/code_data_factory/interaction/replay.py` 实现日志 inspect 和固定动作真实 replay 两种入口，验证冻结初始资源/工具版本、保存新尝试和差异；缺原环境不能偷偷换工具。（依赖：T040）
-- [ ] T042 [US2] 在 `src/code_data_factory/verification/rewards.py`、`configs/quality/reward-terminal-v1.yaml` 实现已验证 PASS→1、FAIL→0、UNKNOWN→null 的独立版本记录，过程诊断不混入终局奖励，原证据不可覆盖。（依赖：T041）
-- [ ] T043 [US2] 在 `src/code_data_factory/cli.py` 接入 `environment check`、`trajectory collect/inspect/replay`、`verify run`，对统一输出和所有终态进行契约核对。（依赖：T028、T042）
+- [X] T035 [US2] 在 `src/code_data_factory/interaction/tools.py` 复用 DuckDB 全文检索、decimal、zoneinfo 与 Pint 包装四个受限工具，冻结单位/时区/资料版本；运算枚举与数值入参，不引入任意代码解释器。（依赖：T017、T034）
+- [X] T036 [US2] 在 `src/code_data_factory/interaction/environment.py`、`configs/execution/local-tools.yaml` 实现独立会话与 Linux 非特权只读容器/资源/默认断网检查，模型在外部受控调用；不写沙箱内核，环境不合格不能晋级。（依赖：T035）
+- [X] T037 [US2] 在 `src/code_data_factory/interaction/smolagents_adapter.py` 使用 ToolCallingAgent 和步骤回调，包装实际模型请求/原始输出，关闭隐式规划及无关工具，绑定独立会话而非重写 Agent 循环。（依赖：T036）
+- [X] T038 [US2] 在 `src/code_data_factory/interaction/budgets.py`、`configs/execution/collect.yaml` 实现调用前预算守卫，覆盖批量工具/辅助终答；初始限制按 plan 的 8 次、4096/8192 词元、8192/65536 字节和 120 秒，超限明确记录。（依赖：T037）
+- [X] T039 [US2] 在 `src/code_data_factory/interaction/events.py` 实现实际请求/输出/调用/返回的事件落地、完整与不完整尾部封存、取消/中断/环境故障，重试只限安全动作且不复用整任务身份。（依赖：T038）
+- [X] T040 [US2] 在 `src/code_data_factory/verification/tasks.py`、`configs/quality/verifier.yaml` 实现独立结果值/引用/约束断言及依赖诊断，使用固定真值/独立公式；未知/不稳定不给确定判定，验证器不暴露为模型工具。（依赖：T039）
+- [X] T041 [US2] 在 `src/code_data_factory/interaction/replay.py` 实现日志 inspect 和固定动作真实 replay 两种入口，验证冻结初始资源/工具版本、保存新尝试和差异；缺原环境不能偷偷换工具。（依赖：T040）
+- [X] T042 [US2] 在 `src/code_data_factory/verification/rewards.py`、`configs/quality/reward-terminal-v1.yaml` 实现已验证 PASS→1、FAIL→0、UNKNOWN→null 的独立版本记录，过程诊断不混入终局奖励，原证据不可覆盖。（依赖：T041）
+- [X] T043 [US2] 在 `src/code_data_factory/cli.py` 接入 `environment check`、`trajectory collect/inspect/replay`、`verify run`，对统一输出和所有终态进行契约核对。（依赖：T028、T042）
 - [ ] T044 [US2] 在合格 Linux 环境完成 100 先导任务各两次固定动作执行与至少 35 例全部金标准对照，保存 `artifacts/verifications/pilot/manifest.json`；逐任务审计依据，失败先修复并停止扩大采样。（依赖：T032、T043）
 - [ ] T045 [US2] 在已授权模型/预算内采集实际先导轨迹并抽查至少 30 条，保存 `artifacts/interactions/pilot/manifest.json`、`artifacts/data-audit/trajectory_review.parquet`；逐轮输入、依赖、结果和全部失败成本完整。（依赖：T044）
 - [ ] T046 [US2] 按 `configs/tasks/production.yaml` 冻结独立分组后扩大训练候选，目标上限 5000 任务、每题最多四次、总计最多 20000 次尝试，保存 `artifacts/interactions/production/manifest.json`；只使用训练分组，单列未达量/被过滤原因。（依赖：T045）
