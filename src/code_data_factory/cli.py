@@ -140,7 +140,7 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
             raise ValueError("dataset export-sft requires --dataset and --config")
         attempts = json.loads(parsed.dataset.read_text(encoding="utf-8"))
         config = yaml.safe_load(parsed.config.read_text(encoding="utf-8"))
-        export_result = export_sft_examples(attempts, output_dir=output, tokenizer_name=config["tokenizer_name"], tokenizer_revision=config["tokenizer_revision"], template_version=config["template_version"])
+        export_result = export_sft_examples(attempts, output_dir=output, tokenizer_name=config["tokenizer_name"], tokenizer_revision=config["tokenizer_revision"], template_version=config["template_version"], template_sha256=config.get("template_sha256"))
         return _completed(command, run_id, [output / "loss_mask_audit.json"], {"examples": len(export_result.examples)})
     raise ValueError("unsupported command; expected source/task/trajectory/data/dataset US1 subcommand")
 

@@ -1,5 +1,6 @@
-tokenizer_name: test-byte-tokenizer
-tokenizer_revision: v1
-template_version: tool-chat-v1
+tokenizer_name: Qwen/Qwen3-8B
+tokenizer_revision: b968826d9c46dd6066d109eabc6255188de91218
+template_version: qwen3-chat-template-a55ee1b1
+template_sha256: a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8
 max_context_tokens: 8192
 unknown_action: reject

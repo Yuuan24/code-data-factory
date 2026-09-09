@@ -7,6 +7,24 @@ import pytest
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
 
 
+class FakeChatTokenizer:
+    chat_template = "fake-v1"
+
+    def encode(self, text: str, *, add_special_tokens: bool) -> list[int]:
+        del add_special_tokens
+        return list(text.encode("utf-8"))
+
+    def apply_chat_template(
+        self, conversation: list[dict[str, str]], *, tokenize: bool, add_generation_prompt: bool
+    ) -> list[int]:
+        assert tokenize is True
+        assert add_generation_prompt is False
+        return self.encode(
+            "".join(f"<{message['role']}>\n{message['content']}<eos>\n" for message in conversation),
+            add_special_tokens=False,
+        )
+
+
 def _attempt(attempt_id: str, *, unknown_action: bool = False) -> dict[str, object]:
     return {
         "attempt_id": attempt_id,
@@ -32,6 +50,7 @@ def test_sft_export_preserves_context_and_trains_only_model_output(tmp_path: Pat
         tokenizer_name="test-byte-tokenizer",
         tokenizer_revision="v1",
         template_version="tool-chat-v1",
+        tokenizer=FakeChatTokenizer(),
     )
 
     example = result.examples[0]
@@ -47,7 +66,7 @@ def test_sft_export_preserves_context_and_trains_only_model_output(tmp_path: Pat
     ]
     assert example.role_loss_counts["tool"] == 0
     assert example.role_loss_counts["assistant"] > 0
-    assert example.control_token_count == 1
+    assert example.control_token_count > 0
     assert (tmp_path / "training_examples.parquet").is_file()
     assert (tmp_path / "target_mapping.parquet").is_file()
     assert (tmp_path / "loss_mask_audit.json").is_file()
@@ -63,6 +82,7 @@ def test_sft_export_rejects_unknown_error_position_without_mutating_source(tmp_p
             tokenizer_name="test-byte-tokenizer",
             tokenizer_revision="v1",
             template_version="tool-chat-v1",
+            tokenizer=FakeChatTokenizer(),
         )
 
     assert source[0]["unknown_action_location"] is True

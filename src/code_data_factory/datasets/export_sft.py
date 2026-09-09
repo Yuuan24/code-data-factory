@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -15,6 +15,16 @@ from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_b
 
 class ExportError(ValueError):
     """An attempt cannot produce a safe, complete SFT target view."""
+
+
+class ChatTokenizer(Protocol):
+    chat_template: str | None
+
+    def apply_chat_template(
+        self, conversation: list[dict[str, str]], *, tokenize: bool, add_generation_prompt: bool
+    ) -> list[int]: ...
+
+    def encode(self, text: str, *, add_special_tokens: bool) -> list[int]: ...
 
 
 @dataclass(frozen=True)
@@ -38,8 +48,28 @@ def _content(message: dict[str, Any]) -> str:
     return content
 
 
-def _encode(fragment: str) -> list[int]:
-    return list(fragment.encode("utf-8"))
+def _load_tokenizer(name: str, revision: str) -> ChatTokenizer:
+    try:
+        from transformers import AutoTokenizer
+    except ImportError as error:
+        raise ExportError("transformers is required for a real SFT tokenizer") from error
+    tokenizer = AutoTokenizer.from_pretrained(name, revision=revision)
+    if not getattr(tokenizer, "chat_template", None):
+        raise ExportError("frozen tokenizer does not provide a chat template")
+    return tokenizer  # type: ignore[return-value]
+
+
+def _template_message(message: dict[str, Any]) -> dict[str, str]:
+    return {"role": str(message["role"]), "content": _content(message)}
+
+
+def _render(tokenizer: ChatTokenizer, messages: list[dict[str, str]]) -> list[int]:
+    value = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=False)
+    if hasattr(value, "get"):
+        value = value.get("input_ids")
+    if not isinstance(value, list) or not all(isinstance(token, int) for token in value):
+        raise ExportError("tokenizer chat template did not produce token ids")
+    return value
 
 
 def export_sft_examples(
@@ -49,6 +79,8 @@ def export_sft_examples(
     tokenizer_name: str,
     tokenizer_revision: str,
     template_version: str,
+    tokenizer: ChatTokenizer | None = None,
+    template_sha256: str | None = None,
 ) -> SftExportResult:
     """Write a reproducible SFT view without modifying source attempts."""
 
@@ -56,12 +88,17 @@ def export_sft_examples(
         raise ExportError("a frozen tokenizer identity and template version are required")
     if any(bool(attempt.get("unknown_action_location")) for attempt in attempts):
         raise ExportError("unknown action location cannot be exported")
+    active_tokenizer = tokenizer or _load_tokenizer(tokenizer_name, tokenizer_revision)
+    template = active_tokenizer.chat_template
+    if template_sha256 is not None and (template is None or sha256_bytes(template.encode("utf-8")) != template_sha256):
+        raise ExportError("frozen tokenizer chat template digest mismatch")
     examples: list[SftExample] = []
     mappings: list[dict[str, Any]] = []
     for attempt in attempts:
         messages = attempt.get("messages")
         if not isinstance(messages, list) or not messages:
             raise ExportError("attempt needs complete messages")
+        template_messages: list[dict[str, str]] = []
         input_ids: list[int] = []
         loss_mask: list[bool] = []
         role_token_counts: dict[str, int] = {}
@@ -71,16 +108,25 @@ def export_sft_examples(
             if not isinstance(message, dict) or message.get("role") not in {"user", "assistant", "tool"}:
                 raise ExportError("messages must use user, assistant, or tool roles")
             role = str(message["role"])
-            encoded = _encode(f"<{role}>\n{_content(message)}\n")
-            prefix = _encode(f"<{role}>\n")
+            prefix_ids = _render(active_tokenizer, template_messages) if template_messages else []
+            rendered_message = _template_message(message)
+            rendered_ids = _render(active_tokenizer, [*template_messages, rendered_message])
+            if rendered_ids[: len(prefix_ids)] != prefix_ids:
+                raise ExportError("chat template is not prefix-stable for this message sequence")
+            encoded = rendered_ids[len(prefix_ids) :]
+            if not encoded:
+                raise ExportError("chat template produced an empty message span")
             model_output = role == "assistant"
-            mask = [False] * len(prefix) + [model_output] * (len(encoded) - len(prefix))
+            mask = [model_output] * len(encoded)
             input_ids.extend(encoded)
             loss_mask.extend(mask)
             role_token_counts[role] = role_token_counts.get(role, 0) + len(encoded)
             role_loss_counts[role] = role_loss_counts.get(role, 0) + sum(mask)
-            if role == "assistant" and "<eos>" in _content(message):
-                controls += 1
+            if role == "assistant":
+                content_ids = active_tokenizer.encode(
+                    rendered_message["content"], add_special_tokens=False
+                )
+                controls += max(0, len(encoded) - len(content_ids))
             mappings.append(
                 {
                     "attempt_id": str(attempt["attempt_id"]),
@@ -89,6 +135,9 @@ def export_sft_examples(
                     "target_token_count": sum(mask),
                 }
             )
+            template_messages.append(rendered_message)
+        if input_ids != _render(active_tokenizer, template_messages):
+            raise ExportError("chat template token boundaries are not reproducible")
         examples.append(
             SftExample(
                 attempt_id=str(attempt["attempt_id"]),
