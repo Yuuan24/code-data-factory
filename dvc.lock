@@ -76,10 +76,22 @@ stages:
       hash: md5
       md5: b70f0444a5fa471f5a0ebcdd0db6f356
       size: 258
+    - path: src/code_data_factory/cli.py
+      hash: md5
+      md5: 32ad6f1d9f846421f17f077f68518f9f
+      size: 11017
     - path: src/code_data_factory/datasets/build.py
       hash: md5
-      md5: 73678669164e5329660464d28cdb0b0a
-      size: 6735
+      md5: 9ddd932c4abfc9f1cfb4b2905eebfeaf
+      size: 7197
+    - path: src/code_data_factory/processing/backends.py
+      hash: md5
+      md5: aab378c7680a893f111804b369b56478
+      size: 3418
+    - path: src/code_data_factory/processing/commit.py
+      hash: md5
+      md5: 92b9648abcfcb2e8ed2e33eb8e3b3893
+      size: 5343
     - path: src/code_data_factory/processing/dedup.py
       hash: md5
       md5: 7c849268426e0793dc67651dca750eb5
@@ -91,6 +103,6 @@ stages:
     outs:
     - path: data/draft/ray
       hash: md5
-      md5: 1f0eb0d6d4c8c360c8e0c9572cd7215f.dir
-      size: 135648
+      md5: 9a974335ea6a179e1d67fffdbb6d226f.dir
+      size: 151158
       nfiles: 12
