@@ -14,17 +14,20 @@ from typing import cast
 import yaml
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes
+from code_data_factory.contracts.tasks import TaskPackage
 from code_data_factory.datasets.build import build_draft
 from code_data_factory.datasets.build_input import BuildInputError, load_build_input
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
 from code_data_factory.interaction.environment import check_environment
+from code_data_factory.interaction.pilot import execute_fixed_actions, load_facts
 from code_data_factory.interaction.replay import inspect_manifest
 from code_data_factory.sources.audit import audit_sources, freeze_document_sources
 from code_data_factory.sources.revoke import revoke_source
 from code_data_factory.sources.toucan import import_toucan_records, write_import_result
 from code_data_factory.tasks.build import build_pilot_tasks
 from code_data_factory.tasks.splits import SplitRegistry
+from code_data_factory.verification.pilot import verify_pilot_attempts
 
 EXIT_INPUT_ERROR = 2
 EXIT_DEPENDENCY_ERROR = 3
@@ -86,6 +89,14 @@ def _require_output(parsed: argparse.Namespace) -> Path:
 
 def _completed(command: str, run_id: str, paths: list[Path], counts: dict[str, int]) -> CommandEnvelope:
     return CommandEnvelope(command, run_id, "COMPLETED", "SOFTWARE_VALIDATED", [str(path) for path in paths], counts, [], [])
+
+
+def _load_task_packages(path: Path) -> list[TaskPackage]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    items = payload.get("tasks") if isinstance(payload, dict) else None
+    if not isinstance(items, list):
+        raise ValueError("task manifest must contain tasks")
+    return [TaskPackage.model_validate(item) for item in items]
 
 
 def _resumed_build(output: Path, *, run_id: str, backend: str, input_manifest_hash: str) -> tuple[int, int] | None:
@@ -154,7 +165,53 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
         if not isinstance(event_count, int):
             raise ValueError("trajectory inspection returned an invalid event count")
         return _completed(command, run_id, [inspect_path], {"events": event_count})
-    if parsed.command in (["trajectory", "collect"], ["trajectory", "replay"], ["verify", "run"]):
+    if parsed.command == ["trajectory", "collect"]:
+        if parsed.tasks is None or parsed.config is None:
+            raise ValueError("trajectory collect requires --tasks and --config")
+        preflight = check_environment(parsed.config)
+        if preflight.status != "PASSED":
+            return CommandEnvelope(
+                command,
+                run_id,
+                "GATE_FAILED",
+                "UNVERIFIED",
+                [],
+                {},
+                ["fixed-action collection requires a passed Linux container preflight"],
+                [],
+            )
+        config = yaml.safe_load(parsed.config.read_text(encoding="utf-8"))
+        facts_value = config.get("facts_config") if isinstance(config, dict) else None
+        if not isinstance(facts_value, str):
+            raise ValueError("collection config requires facts_config")
+        tasks = _load_task_packages(parsed.tasks)
+        execute_fixed_actions(
+            tasks,
+            facts=load_facts(parsed.config.parent / facts_value),
+            output_dir=output,
+            task_assets_root=parsed.tasks.parent,
+            preflight=preflight,
+        )
+        return _completed(command, run_id, [output / "manifest.json"], {"tasks": len(tasks), "attempts": len(tasks) * 2})
+    if parsed.command == ["verify", "run"]:
+        if parsed.tasks is None or parsed.attempts is None or parsed.config is None:
+            raise ValueError("verify run requires --tasks, --attempts, and --config")
+        config = yaml.safe_load(parsed.config.read_text(encoding="utf-8"))
+        version = config.get("verifier_version") if isinstance(config, dict) else None
+        if not isinstance(version, str):
+            raise ValueError("verifier config requires verifier_version")
+        manifest = verify_pilot_attempts(
+            tasks=_load_task_packages(parsed.tasks),
+            task_assets_root=parsed.tasks.parent,
+            attempts_manifest=parsed.attempts,
+            output_dir=output,
+            verifier_version=version,
+        )
+        attempt_count = manifest["attempt_count"]
+        if not isinstance(attempt_count, int):
+            raise ValueError("verification manifest returned an invalid attempt count")
+        return _completed(command, run_id, [output / "manifest.json"], {"attempts": attempt_count})
+    if parsed.command == ["trajectory", "replay"]:
         raise ValueError(
             f"{command} is fail-closed until a verified execution environment and its task-specific input manifest are supplied"
         )
