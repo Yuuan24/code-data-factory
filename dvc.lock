@@ -40,16 +40,16 @@ stages:
       size: 11017
     - path: src/code_data_factory/datasets/build.py
       hash: md5
-      md5: 4e31f6d998c6809276d68cef9631b51a
-      size: 6848
+      md5: 9ddd932c4abfc9f1cfb4b2905eebfeaf
+      size: 7197
     - path: src/code_data_factory/processing/backends.py
       hash: md5
       md5: aab378c7680a893f111804b369b56478
       size: 3418
     - path: src/code_data_factory/processing/commit.py
       hash: md5
-      md5: bc5af46381202393064ade3f498c3abf
-      size: 3482
+      md5: 92b9648abcfcb2e8ed2e33eb8e3b3893
+      size: 5343
     - path: src/code_data_factory/processing/dedup.py
       hash: md5
       md5: 7c849268426e0793dc67651dca750eb5
@@ -61,8 +61,8 @@ stages:
     outs:
     - path: data/draft/local
       hash: md5
-      md5: cbcca917e24093371665f7683ee6821d.dir
-      size: 150650
+      md5: 615148a5de48e07702859eed1cd2152e.dir
+      size: 151160
       nfiles: 12
   build_us1_ray:
     cmd: uv run --group data cdf data build --input data/build-inputs/pilot.json

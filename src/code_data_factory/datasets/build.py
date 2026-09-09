@@ -7,10 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes
+from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes, sha256_file
 from code_data_factory.datasets.build_input import BuildInput
 from code_data_factory.processing.backends import process_events
-from code_data_factory.processing.commit import commit_build
+from code_data_factory.processing.commit import BuildIdentity, commit_build
 from code_data_factory.processing.dedup import deduplicate_tasks, write_dedup_evidence
 from code_data_factory.processing.quality import decide_quality, write_quality_ledger
 
@@ -109,11 +109,22 @@ def build_draft(*, build_input: BuildInput, output_dir: Path, backend: str, run_
         )
         events.append({"attempt_id": attempt_id, "seq": 0, "event_type": "FINAL_OUTPUT", "payload": outcome})
     processed = process_events(events, backend=backend, observation_inline_limit=4096)
-    commit = commit_build(rows, destination=output_dir / "snapshots", run_id=run_id, previous=None, fail_at=None)
+    input_hash = sha256_bytes(canonical_json_bytes(build_input.content_hashes))
+    commit = commit_build(
+        rows,
+        destination=output_dir / "snapshots",
+        run_id=run_id,
+        previous=None,
+        fail_at=None,
+        build_identity=BuildIdentity(
+            input_manifest_hash=input_hash,
+            rule_version=build_input.rule_version,
+            split_registry_hash=sha256_file(build_input.split_registry),
+        ),
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     write_dedup_evidence(dedup, output_dir=output_dir / "dedup")
     write_quality_ledger(quality.decisions, output_dir=output_dir)
-    input_hash = sha256_bytes(canonical_json_bytes(build_input.content_hashes))
     (output_dir / "membership.json").write_bytes(canonical_json_bytes(list(commit.rows)))
     (output_dir / "events.json").write_bytes(canonical_json_bytes(processed.rows))
     (output_dir / "build_receipt.json").write_bytes(
@@ -128,6 +139,7 @@ def build_draft(*, build_input: BuildInput, output_dir: Path, backend: str, run_
                 "accepted_count": sum(row["decision"] == "ACCEPT" for row in commit.rows),
                 "train_eligible_count": 0,
                 "source_manifest_count": len(build_input.source_manifests),
+                "recovery_event": commit.recovery_event,
             }
         )
     )

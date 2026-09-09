@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from code_data_factory.processing.commit import CommitError, commit_build
+from code_data_factory.processing.commit import BuildIdentity, CommitError, commit_build
 from code_data_factory.tasks.splits import BridgeConflict, SplitRegistry
 
 
@@ -100,4 +100,25 @@ def test_postcommit_retry_is_idempotent_and_conflicting_publication_is_rejected(
             destination=tmp_path / "published",
             run_id="run-2",
             fail_at=None,
+        )
+
+
+def test_commit_records_build_identity_and_rejects_a_rule_change_in_place(tmp_path: Path) -> None:
+    identity = BuildIdentity("input-hash", "quality-v1", "split-hash")
+    result = commit_build(
+        [{"task_id": "a", "projection": "lookup", "scope": "TEST"}],
+        destination=tmp_path / "published",
+        run_id="run-1",
+        fail_at=None,
+        build_identity=identity,
+    )
+
+    assert result.recovery_event == "NEW_COMMIT"
+    with pytest.raises(CommitError, match="build identity"):
+        commit_build(
+            [{"task_id": "a", "projection": "lookup", "scope": "TEST"}],
+            destination=tmp_path / "published",
+            run_id="run-1",
+            fail_at=None,
+            build_identity=BuildIdentity("input-hash", "quality-v2", "split-hash"),
         )
