@@ -124,9 +124,8 @@ Linux 与 CPython 3.12，并与当前 `uv.lock` 身份绑定；不得复制 macO
 5. 依赖兼容性与 Parquet probe 均通过，并保存结果 SHA-256；
 6. 回执没有秘密，且明确列出隔离、分布式、训练和模型价值仍未验证。
 
-后续 agent 交接时应引用本契约、[OpenBayes 环境指南](../../../docs/openbayes-environment.md)、
-[证据日志 CH-010](../../../docs/evidence-journal.md#ch-010租用容器重启后仍可重建锁定依赖)及实际 probe，
-而不能只说“环境已配置”。
+后续 agent 交接时应引用本契约、[OpenBayes 环境指南](../../../docs/openbayes-environment.md)及实际 probe，
+而不能只说“环境已配置”。私有决策记录只能保留在本机忽略目录，不得作为公开交接材料的链接。
 
 ## 7. GitHub 来源测试与 `main` 合并门禁
 

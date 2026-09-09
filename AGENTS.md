@@ -21,17 +21,16 @@ Before starting a task, read the relevant requirements in:
 2. `specs/001-code-data-factory/spec.md`
 3. `specs/001-code-data-factory/plan.md`
 4. `specs/001-code-data-factory/tasks.md`
-5. `docs/evidence-journal.md`
+5. 若本机存在，读取本地私有决策记录；该记录不得被 Git 跟踪或在公开文档中引用。
 
 Do not silently replace a frozen benchmark, training method, evidence level, budget, or comparison rule.
 
-## Difficulty, Decision, and Evidence Journal
+## Private Decision Record
 
-Update `docs/evidence-journal.md` when a task reveals a non-trivial constraint, failure, unexpected measurement,
-or a choice among plausible approaches. Do this when the issue is discovered and when it is resolved; do not wait
-until the final project summary.
+当任务揭示非平凡约束、失败、意外测量或合理方案之间的取舍时，更新本机忽略的私有决策记录。
+该记录在发现和解决时同步更新，但不得被提交、推送或作为公开文档引用。
 
-A solution record is incomplete unless it explains:
+私有决策记录不完整，除非它解释：
 
 - the mechanism that made the problem difficult;
 - the realistic alternatives that were considered;
@@ -42,13 +41,14 @@ A solution record is incomplete unless it explains:
 
 “Used component X” and “changed parameter Y” are implementation details, not a solution or trade-off by themselves.
 If a checkpoint produced no non-trivial new issue, record that review explicitly instead of inventing a highlight.
-Never promote a candidate evidence summary without the evidence level required by the constitution.
+Never promote a candidate evidence summary without the evidence level required by the constitution. 公开材料只保留
+可分发的结论、证据层级、范围和复现入口，不披露私有记录的细节。
 
 ## Checkpoint Gate
 
-A user-story checkpoint is not complete until its acceptance evidence and journal review are both present. The
-implementing agent must update an existing `CH-###` entry, create a new one, or add an explicit no-new-challenge
-checkpoint receipt with the reviewed task and artifact IDs.
+A user-story checkpoint is not complete until its acceptance evidence and local decision-record review are both
+present. The implementing agent must update an existing local `CH-###` entry, create a new one, or add an explicit
+no-new-issue checkpoint receipt with the reviewed task and artifact IDs.
 
 ## GitHub-to-OpenBayes Test Gate
 

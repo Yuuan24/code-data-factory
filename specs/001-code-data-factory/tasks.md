@@ -7,7 +7,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 **Revision**: 2.0 | **Created**: 2026-09-08 | **Status**: Ready for implementation；全部任务尚未执行。
 **Input**: [spec.md](spec.md)、[plan.md](plan.md)、[research.md](research.md)、
 [data-model.md](data-model.md)、[contracts/](contracts/)、[quickstart.md](quickstart.md)，均为规格 2.0。
-**Prerequisites**: 阅读项目宪章 3.0.2、上述设计、`docs/evidence-journal.md` 和任务所属契约。
+**Prerequisites**: 阅读项目宪章 3.0.2、上述设计、任务所属契约，以及可用时的本机私有决策记录（不提交）。
 本文件替换旧代码任务清单，旧版本任务编号不可当作本版完成证据；历史日志中的编号按当时版本解释。
 
 ## Format and Execution Rules
@@ -56,7 +56,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [X] T009 在 `src/code_data_factory/contracts/artifacts.py` 实现规范序列化、物理/逻辑哈希、产物引用检查及原子清单提交；用 `tests/contract/test_artifact_integrity.py` 验证篡改、重入和半提交拒绝。（依赖：T008）
 - [X] T010 在 `src/code_data_factory/contracts/resources.py`、`configs/execution/resource-policy.yaml` 实现共用报价/授权引用/停止上限与费用台账，分别记录 CPU、GPU、存储和外部模型失败重试费用，缺授权或报价禁止外部运行。（依赖：T009）
 - [X] T011 在 `src/code_data_factory/cli.py` 实现统一结构化输出、错误码 0/2–8、标准错误日志和 dry-run 语义；在 `tests/contract/test_cli_envelope.py` 验证尚未实现的业务不能返回伪成功。（依赖：T010）
-- [X] T012 运行核心契约与模式兼容验证，保存 `artifacts/checkpoints/foundation.json`，同期在 `docs/evidence-journal.md` 记录身份/状态/哈希取舍或无新增问题回执；远端回执字段和证据层级遵守[租用 Linux 环境恢复与依赖验证契约](contracts/rented-environment-recovery.md)。（依赖：T011）
+- [X] T012 运行核心契约与模式兼容验证，保存 `artifacts/checkpoints/foundation.json`，同期在本机私有决策记录（不提交）中记录身份/状态/哈希取舍或无新增工程议题回执；远端回执字段和证据层级遵守[租用 Linux 环境恢复与依赖验证契约](contracts/rented-environment-recovery.md)。（依赖：T011）
 
 **Checkpoint**: 基础契约通过，旧版本/歧义关联/私有参考/未知奖励都不能静默晋级。
 
@@ -90,7 +90,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T029 [US1] 执行固定来源审计、候选近重复至少 100 对人工抽审和漏检探针，保存 `artifacts/data-audit/source_report.json`、`artifacts/data-audit/dedup_review.parquet`；据结果冻结规则，不合格不扩量；语义向量复核仅在实测缺口成立时另记启用决定。（依赖：T028）
 - [ ] T030 [US1] 运行本地/Ray、全量/增量等价和提交前/后各一次故障恢复，保存 `artifacts/data-runs/equivalence/manifest.json`；用同一登记簿验证逻辑哈希/决策一致与无重复发布。（依赖：T029）
 - [ ] T031 [US1] 从规范导入/草稿重建一次版本并测试撤销传播、SFT 掩码和原始失败保留，保存 `artifacts/checkpoints/us1-software.json`，仅报告有实际证据的用途与数据数量。（依赖：T030）
-- [ ] T032 [US1] 在 `docs/evidence-journal.md` 记录 US1 数据治理取舍、SC-001/004–007 的软件证据和剩余真实发布门禁，并把检查回执关联到 `artifacts/checkpoints/us1-software.json`。（依赖：T031）
+- [ ] T032 [US1] 在本机私有决策记录（不提交）中记录 US1 数据治理取舍、SC-001/004–007 的软件证据和剩余真实发布门禁，并把检查回执关联到 `artifacts/checkpoints/us1-software.json`。（依赖：T031）
 
 **Checkpoint**: US1 软件治理可独立演示；正式合格池与实际质量指标由 T047 回验，不得冒充已执行验证。
 
@@ -119,7 +119,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T045 [US2] 在已授权模型/预算内采集实际先导轨迹并抽查至少 30 条，保存 `artifacts/interactions/pilot/manifest.json`、`artifacts/data-audit/trajectory_review.parquet`；逐轮输入、依赖、结果和全部失败成本完整。（依赖：T044）
 - [ ] T046 [US2] 按 `configs/tasks/production.yaml` 冻结独立分组后扩大训练候选，目标上限 5000 任务、每题最多四次、总计最多 20000 次尝试，保存 `artifacts/interactions/production/manifest.json`；只使用训练分组，单列未达量/被过滤原因。（依赖：T045）
 - [ ] T047 [US2] 通过完整构建输入清单生成 `data/releases/verified/` 与 `data/exports/verified/`，重跑发布/掩码/谱系门禁并记录实际质量/成本；同池候选无未验证任务、历史观察或跨集合泄漏。（依赖：T026、T046）
-- [ ] T048 [US2] 保存 `artifacts/checkpoints/us2.json` 并更新 `docs/evidence-journal.md`，关联先导、正负对照、示范抽审及 US1 实际发布回验，分别声明软件、隔离执行与未训练边界。（依赖：T047）
+- [ ] T048 [US2] 保存 `artifacts/checkpoints/us2.json` 并更新本机私有决策记录（不提交），关联先导、正负对照、示范抽审及 US1 实际发布回验，分别声明软件、隔离执行与未训练边界。（依赖：T047）
 
 **Checkpoint**: 有可执行且独立验证的真实数据池；工具成功不能替代任务成功，US1 真实数据验收可回验。
 
@@ -144,7 +144,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T056 [US6] 执行两入口固定动作、32/128 步存读、上下文改写、受控恢复/不支持拒绝及四类稀疏奖励重评分，保存 `artifacts/compatibility/contract/`、`artifacts/compatibility/long-horizon/`，包括状态/哈希/词元关联检查。（依赖：T055）
 - [ ] T057 [US6] 在 `configs/experiments/model-candidates.yaml`、`artifacts/compatibility/model-profile.json` 固定 Qwen3-8B 首选与 Qwen3-4B 事前备选顺序及实际 revision/模板/思考模式，完成推理/词元通道资源探针；不声称 SFT 已可训练，费用接 T010。（依赖：T056）
 - [ ] T058 [US6] 用 T057 模型在合格环境完成至少两个任务各两次真实训练器采样，保存 `artifacts/compatibility/sampling/`，核对实际输入输出词元、mask、版本、成本及未调用优化器；不能用成功脚本代替真实模型失败轨迹。（依赖：T057）
-- [ ] T059 [US6] 汇总 SC-011–013 至 `artifacts/checkpoints/us6.json` 并更新 `docs/evidence-journal.md`，注明后续 RL 仅增加算法/预算附件，真实长程能力与 RL 参数更新尚未验证。（依赖：T058）
+- [ ] T059 [US6] 汇总 SC-011–013 至 `artifacts/checkpoints/us6.json` 并更新本机私有决策记录（不提交），注明后续 RL 仅增加算法/预算附件，真实长程能力与 RL 参数更新尚未验证。（依赖：T058）
 
 **Checkpoint**: 首版强制扩展验收完成；未取得真实采样、恢复或长程证据的项保持未完成。
 
@@ -169,7 +169,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T067 [US3] 在 `src/code_data_factory/datasets/recipes.py` 构建 RandomMatched 与 ClosedLoop 草稿，匹配来源/粗任务族/深度/长度/验证强度/基线难度，保留失败类型覆盖差异，保存联合支持、共同剔除与平衡报告至 `data/recipes/main/`。（依赖：T066）
 - [ ] T068 [US3] 在 `src/code_data_factory/cli.py` 接入 `evaluate run`、`feedback build`，确保正式测试解锁依赖预登记与数据冻结，不以命令参数绕过；评测和反馈均出明细与产物清单。（依赖：T067）
 - [ ] T069 [US3] 执行开发评测夹具→发现→选择配方→发布草稿的集成验证，保存 `artifacts/checkpoints/us3-software.json`，验证每次非随机选择都有 finding/action，最终 test 内容与标识不进入反馈。（依赖：T068）
-- [ ] T070 [US3] 在 `docs/evidence-journal.md` 记录 US3 软件里程碑和 `artifacts/checkpoints/us3-software.json`，明确 SC-008 的真实训练复评依赖 T079/T083/T084，尚不能关闭完整反馈验收。（依赖：T069）
+- [ ] T070 [US3] 在本机私有决策记录（不提交）中记录 US3 软件里程碑和 `artifacts/checkpoints/us3-software.json`，明确 SC-008 的真实训练复评依赖 T079/T083/T084，尚不能关闭完整反馈验收。（依赖：T069）
 
 **Checkpoint**: 反馈软件与实际开发发现可交付；US3 完整训练闭环稍后 T084 回填。
 
@@ -197,7 +197,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T082 [US4] 生成 `reports/sft-main/attribution.json`，按预登记的 2 个百分点实际意义阈值、区间下界和护栏判定，完整呈现正向/无收益/回退/不确定/未完成，未解决环境故障或等预算失败阻止因果陈述。（依赖：T081）
 - [ ] T083 [US4] 以训练模型按同一协议复评原开发切片，保存 `artifacts/evaluations/formal-development/`，只连接原 finding/action 的结果，不能利用最终 test 追加有利训练或修改配方。（依赖：T082）
 - [ ] T084 [US4] 将真实开发发现→数据选择→发布→训练→复评闭环写入 `reports/sft-main/feedback_outcomes.parquet`，包含无改善/回退记录，生成 `artifacts/checkpoints/us3-training.json`，完成 SC-008 实际回验。（依赖：T083）
-- [ ] T085 [US4] 保存 `artifacts/checkpoints/us4.json` 并更新 `docs/evidence-journal.md`，核对六次实际运行、公平性、外部/项目结果、费用和 SC-008–010；未达到所需证据时保持对应门禁未完成。（依赖：T084）
+- [ ] T085 [US4] 保存 `artifacts/checkpoints/us4.json` 并更新本机私有决策记录（不提交），核对六次实际运行、公平性、外部/项目结果、费用和 SC-008–010；未达到所需证据时保持对应门禁未完成。（依赖：T084）
 
 **Checkpoint**: 取得可归因的真实比较或完整诚实的未完成结果；“有正收益”不作必达目标，但实际
 参数更新/公平对照/真实评测缺失不能算训练验收通过。
@@ -224,7 +224,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T095 [US5] 在 `src/code_data_factory/cli.py` 接入 `report build`、`evidence verify`、`reproduce`，用 `tests/contract/test_evidence_commands.py` 校验缺证据退出码、实际与降级状态和复现输入边界。（依赖：T094）
 - [ ] T096 [US5] 独立重建一个真实数据版本、重算一项逐题指标，再移除一项必要证据验证阻断，保存 `artifacts/reproductions/verified/`、`artifacts/evidence-audit/`；恢复证据后报告状态与原事实一致。（依赖：T095）
 - [ ] T097 [US5] 审查 `reports/sft-main/report.md`、`reports/sft-main/claims.json` 的表述、个人/敏感信息与成本分母，只准备可分发内容，不上传或提交；逐项说明任务/来源/节点/模型范围。（依赖：T096）
-- [ ] T098 [US5] 保存 `artifacts/checkpoints/us5.json` 并更新 `docs/evidence-journal.md`，关联 SC-014/015 的真实节点与独立复现证据；所有用户故事须有实际问题记录或无新增回执。（依赖：T097）
+- [ ] T098 [US5] 保存 `artifacts/checkpoints/us5.json` 并更新本机私有决策记录（不提交），关联 SC-014/015 的真实节点与独立复现证据；所有用户故事须有实际工程议题记录或无新增回执。（依赖：T097）
 
 **Checkpoint**: 评审者能独立复现和审计，不能凭软件/数据量或漂亮报告推断模型收益。
 
@@ -235,7 +235,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T099 运行项目构建与适当的静态/契约/集成检查，保存 `artifacts/checkpoints/software-final.json`，核对锁文件、安装入口和模式；真实资源检查只引用已验证同版本记录或按必要失效项重跑。（依赖：T059、T070、T085、T098）
 - [ ] T100 逐步核对 `specs/001-code-data-factory/quickstart.md` 与实际 `cdf` 输入输出和已产生运行证据，修正指南漂移，生成 `artifacts/checkpoints/quickstart.json`；不为复查命令再次无条件启动六次付费训练。（依赖：T099）
 - [ ] T101 将全部 FR-001–040、SC-001–015 映射到任务、测试、真实产物和当前状态，输出 `reports/final/requirements-traceability.md` 与机器清单，任何未完成强制验收保持 OPEN。（依赖：T100）
-- [ ] T102 更新 `README.md`、`docs/evidence-journal.md` 与 `reports/final/report.md`，按实际结果展示数据工程、开源复用、扩展兼容和归因，保留限制/失败；不宣称正式 RL 或长程模型收益。（依赖：T101）
+- [ ] T102 更新 `README.md` 与 `reports/final/report.md`，并同步更新本机私有决策记录（不提交）；按实际结果展示数据工程、开源复用、扩展兼容和归因，保留限制/失败；不宣称正式 RL 或长程模型收益。（依赖：T101）
 
 ## Dependencies and Execution Order
 
@@ -358,5 +358,5 @@ CLI 表示命令行界面；这里只映射 [命令契约](contracts/cli.md)，�
 - 实际上游接口不足时记录具体缺口，优先适配已有扩展点；不得直接转向自建平台或新增第二套引擎。
 - 模型收益不是预设结果；数据处理成功、扩展夹具通过或正奖励不能替代六次训练与独立评测。
 - 32/128 步固定案例、真实采样、64 GiB 多节点、同池三种子和归因闭环都不可静默删为可选。
-- 每个故事检查点须在 `docs/evidence-journal.md` 解释实际机制、替代、取舍、结果与证据，或明确
-  记录无新增问题的回执。任务完成、检查点完成和整个项目完成分别判断。
+- 每个故事检查点须在本机私有决策记录（不提交）中解释实际机制、替代、取舍、结果与证据，或明确
+  记录无新增工程议题的回执。任务完成、检查点完成和整个项目完成分别判断。
