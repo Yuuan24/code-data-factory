@@ -51,6 +51,7 @@ def test_publish_is_immutable_and_blocks_unverified_training_members(tmp_path: P
             "verification_status": "VERIFIED",
             "outcome": "PASS",
             "decision": "ACCEPT",
+            "quality_decision_id": "decision-test",
         }
     ]
     result = publish_dataset(
@@ -62,6 +63,20 @@ def test_publish_is_immutable_and_blocks_unverified_training_members(tmp_path: P
     )
     assert result.status == "PUBLISHED"
     assert result.path.joinpath("dataset_manifest.json").is_file()
+    assert json.loads(result.path.joinpath("lineage_index.json").read_text(encoding="utf-8")) == {
+        "source_records": ["source-1"],
+        "attempts": [
+            {
+                "attempt_id": "attempt-test",
+                "task_id": "task-test",
+                "quality_decision_id": "decision-test",
+                "source_record_ids": ["source-1"],
+            }
+        ],
+        "quality_decisions": [
+            {"quality_decision_id": "decision-test", "attempt_id": "attempt-test"}
+        ],
+    }
     assert publish_dataset(
         dataset_id="fixture-v1",
         members=members,
@@ -92,6 +107,7 @@ def test_source_revocation_creates_an_immutable_impact_ledger(tmp_path: Path) ->
                 "verification_status": "VERIFIED",
                 "outcome": "PASS",
                 "decision": "ACCEPT",
+                "quality_decision_id": "decision-test",
             }
         ],
         output_dir=tmp_path / "releases",
@@ -99,9 +115,24 @@ def test_source_revocation_creates_an_immutable_impact_ledger(tmp_path: Path) ->
         rule_version="v1",
     )
 
-    ledger = revoke_source("source-1", releases_root=tmp_path / "releases", ledger_root=tmp_path / "ledgers")
+    _write(tmp_path / "runs.json", {"run_id": "run-1", "dataset_id": "fixture-v1"})
+    _write(tmp_path / "claims.json", {"claim_id": "claim-1", "quality_decision_id": "decision-test"})
+    ledger = revoke_source(
+        "source-1",
+        releases_root=tmp_path / "releases",
+        ledger_root=tmp_path / "ledgers",
+        runs_root=tmp_path,
+        claims_root=tmp_path,
+    )
 
     assert ledger.affected_dataset_ids == ["fixture-v1"]
+    assert ledger.affected_run_ids == ["run-1"]
+    assert ledger.affected_claim_ids == ["claim-1"]
+    assert json.loads(ledger.path.read_text(encoding="utf-8"))["actions"] == {
+        "datasets": "INVALIDATE_DISTRIBUTION",
+        "runs": "INVALIDATE_EVIDENCE",
+        "claims": "INVALIDATE_CLAIM",
+    }
     assert publication.path.joinpath("dataset_manifest.json").is_file()
     assert ledger.path.is_file()
 
@@ -118,6 +149,7 @@ def test_quality_report_recomputes_quality_and_unknown_counts_from_membership(tm
                 "verification_status": "VERIFIED",
                 "outcome": "PASS",
                 "decision": "ACCEPT",
+                "quality_decision_id": "decision-test",
             }
         ],
         output_dir=tmp_path / "releases",

@@ -27,9 +27,22 @@ class DatasetPublication:
 
 def _validate_members(members: list[dict[str, Any]]) -> None:
     for member in members:
-        required = ("task_id", "attempt_id", "source_record_ids", "usage_scope", "verification_status", "outcome", "decision")
+        required = (
+            "task_id",
+            "attempt_id",
+            "source_record_ids",
+            "usage_scope",
+            "verification_status",
+            "outcome",
+            "decision",
+            "quality_decision_id",
+        )
         if any(name not in member for name in required):
             raise PublicationGateError("member is missing required lineage or decision fields")
+        if not isinstance(member["source_record_ids"], list) or not member["source_record_ids"]:
+            raise PublicationGateError("member must retain at least one source record reference")
+        if not isinstance(member["quality_decision_id"], str) or not member["quality_decision_id"]:
+            raise PublicationGateError("member must retain an immutable quality decision reference")
         if member["decision"] != "ACCEPT" or member["verification_status"] != "VERIFIED" or member["outcome"] != "PASS":
             raise PublicationGateError("only independently verified accepted members may publish")
         if member["usage_scope"] == "TRAIN":
@@ -75,7 +88,37 @@ def publish_dataset(
     )
     (path / "diversity_report.json").write_bytes(canonical_json_bytes({"unique_tasks": len({item['task_id'] for item in members})}))
     (path / "cost_report.json").write_bytes(canonical_json_bytes({"cost_cny_fen": None}))
-    (path / "lineage_index.json").write_bytes(canonical_json_bytes({"source_records": sorted({source for item in members for source in item['source_record_ids']})}))
+    attempts = sorted(
+        (
+            {
+                "attempt_id": item["attempt_id"],
+                "task_id": item["task_id"],
+                "quality_decision_id": item["quality_decision_id"],
+                "source_record_ids": sorted(item["source_record_ids"]),
+            }
+            for item in members
+        ),
+        key=lambda item: str(item["attempt_id"]),
+    )
+    decisions = sorted(
+        (
+            {
+                "quality_decision_id": item["quality_decision_id"],
+                "attempt_id": item["attempt_id"],
+            }
+            for item in members
+        ),
+        key=lambda item: str(item["quality_decision_id"]),
+    )
+    (path / "lineage_index.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "source_records": sorted({source for item in members for source in item["source_record_ids"]}),
+                "attempts": attempts,
+                "quality_decisions": decisions,
+            }
+        )
+    )
     (path / "data_card.md").write_text(
         "# Software-test dataset\n\nThis release is SOFTWARE_VALIDATED and is not eligible for training.\n",
         encoding="utf-8",

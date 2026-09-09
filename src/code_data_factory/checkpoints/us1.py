@@ -155,6 +155,7 @@ def run_us1_software_checkpoint(
                     "verification_status": "VERIFIED",
                     "outcome": "PASS",
                     "decision": "ACCEPT",
+                    "quality_decision_id": "fixture-quality-decision",
                 }
             ],
             output_dir=root / "releases",

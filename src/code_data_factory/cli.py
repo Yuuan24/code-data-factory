@@ -13,6 +13,7 @@ from typing import cast
 
 import yaml
 
+from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes
 from code_data_factory.datasets.build import build_draft
 from code_data_factory.datasets.build_input import BuildInputError, load_build_input
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
@@ -83,6 +84,33 @@ def _completed(command: str, run_id: str, paths: list[Path], counts: dict[str, i
     return CommandEnvelope(command, run_id, "COMPLETED", "SOFTWARE_VALIDATED", [str(path) for path in paths], counts, [], [])
 
 
+def _resumed_build(output: Path, *, run_id: str, backend: str, input_manifest_hash: str) -> tuple[int, int] | None:
+    """Return a completed identical build, or let an incomplete one resume normally."""
+
+    receipt_path = output / "build_receipt.json"
+    if not receipt_path.is_file():
+        return None
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if not isinstance(receipt, dict) or any(
+        receipt.get(field) != expected
+        for field, expected in {
+            "run_id": run_id,
+            "backend": backend,
+            "input_manifest_hash": input_manifest_hash,
+        }.items()
+    ):
+        raise ValueError("--resume conflicts with the completed build receipt")
+    membership = output / "membership.json"
+    decisions = output / "quality_decisions.json"
+    if not membership.is_file() or not decisions.is_file():
+        raise ValueError("--resume found an incomplete completed-build receipt")
+    member_count = receipt.get("member_count")
+    accepted_count = receipt.get("accepted_count")
+    if not isinstance(member_count, int) or not isinstance(accepted_count, int):
+        raise ValueError("--resume found an invalid completed-build receipt")
+    return member_count, accepted_count
+
+
 def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
     command = " ".join(parsed.command)
     if parsed.dry_run:
@@ -101,8 +129,23 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
     if parsed.command == ["source", "revoke"]:
         if not parsed.source_record_id:
             raise ValueError("source revoke requires --source-record-id")
-        ledger = revoke_source(parsed.source_record_id, releases_root=Path("data/releases"), ledger_root=output)
-        return _completed(command, run_id, [ledger.path], {"affected_datasets": len(ledger.affected_dataset_ids)})
+        ledger = revoke_source(
+            parsed.source_record_id,
+            releases_root=Path("data/releases"),
+            ledger_root=output,
+            runs_root=Path("artifacts/runs"),
+            claims_root=Path("artifacts/claims"),
+        )
+        return _completed(
+            command,
+            run_id,
+            [ledger.path],
+            {
+                "affected_datasets": len(ledger.affected_dataset_ids),
+                "affected_runs": len(ledger.affected_run_ids),
+                "affected_claims": len(ledger.affected_claim_ids),
+            },
+        )
     if parsed.command == ["task", "build"]:
         if parsed.config is None:
             raise ValueError("task build requires --config")
@@ -125,6 +168,22 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
         if parsed.input is None or parsed.backend is None:
             raise ValueError("data build requires --input and --backend")
         build_input = load_build_input(parsed.input)
+        input_manifest_hash = sha256_bytes(canonical_json_bytes(build_input.content_hashes))
+        if parsed.resume:
+            resumed = _resumed_build(
+                output,
+                run_id=run_id,
+                backend=parsed.backend,
+                input_manifest_hash=input_manifest_hash,
+            )
+            if resumed is not None:
+                members, accepted = resumed
+                return _completed(
+                    command,
+                    run_id,
+                    [output / "build_receipt.json", output / "membership.json", output / "quality_decisions.json"],
+                    {"inputs": len(build_input.content_hashes), "members": members, "accepted": accepted},
+                )
         result = build_draft(build_input=build_input, output_dir=output, backend=parsed.backend, run_id=run_id)
         return _completed(command, run_id, [output / "build_receipt.json", output / "membership.json", output / "quality_decisions.json"], {"inputs": len(build_input.content_hashes), "members": result.member_count})
     if parsed.command == ["dataset", "publish"]:
@@ -148,7 +207,7 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
 def main(argv: Sequence[str] | None = None) -> int:
     parsed = build_parser().parse_args(argv)
     command = " ".join(parsed.command)
-    run_id = str(uuid.uuid4())
+    run_id = parsed.resume if parsed.command == ["data", "build"] and parsed.resume else str(uuid.uuid4())
     if not parsed.command:
         return 0
     try:

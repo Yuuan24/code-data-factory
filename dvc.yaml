@@ -19,7 +19,10 @@ stages:
     deps:
       - data/build-inputs/pilot.json
       - configs/quality/build.yaml
+      - src/code_data_factory/cli.py
       - src/code_data_factory/datasets/build.py
+      - src/code_data_factory/processing/backends.py
+      - src/code_data_factory/processing/commit.py
       - src/code_data_factory/processing/dedup.py
       - src/code_data_factory/processing/quality.py
     outs:
@@ -33,7 +36,10 @@ stages:
     deps:
       - data/build-inputs/pilot.json
       - configs/quality/build.yaml
+      - src/code_data_factory/cli.py
       - src/code_data_factory/datasets/build.py
+      - src/code_data_factory/processing/backends.py
+      - src/code_data_factory/processing/commit.py
       - src/code_data_factory/processing/dedup.py
       - src/code_data_factory/processing/quality.py
     outs:

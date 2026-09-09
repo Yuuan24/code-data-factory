@@ -87,7 +87,8 @@ def build_draft(*, build_input: BuildInput, output_dir: Path, backend: str, run_
         if task_entry is None or verification is None:
             raise ValueError(f"attempt {attempt_id} lacks a task or verification record")
         status, outcome = str(verification.get("status")), str(verification.get("outcome"))
-        decision = decision_by_attempt[attempt_id].action
+        quality_decision = decision_by_attempt[attempt_id]
+        decision = quality_decision.action
         # Fixture records may support software integration tests, never training.
         usage_scope = str(attempt.get("usage_scope", task_entry.get("usage_scope", "DEVELOPMENT")))
         if str(attempt.get("actor_kind")) == "SCRIPTED_FIXTURE" and usage_scope == "TRAIN":
@@ -101,6 +102,7 @@ def build_draft(*, build_input: BuildInput, output_dir: Path, backend: str, run_
                 "verification_status": status,
                 "outcome": outcome,
                 "decision": decision,
+                "quality_decision_id": quality_decision.decision_id,
                 "actor_kind": attempt.get("actor_kind"),
                 "evidence_level": "SOFTWARE_VALIDATED",
             }
