@@ -99,6 +99,37 @@ def freeze_document_sources(manifest_path: Path, *, output_dir: Path) -> Path:
     return frozen_manifest
 
 
+def _frozen_document_snapshot(source: dict[str, Any]) -> tuple[str, str]:
+    """Verify that a declared documentation source is present as frozen bytes."""
+
+    raw_manifest = source.get("frozen_snapshot_manifest")
+    if not isinstance(raw_manifest, str) or not raw_manifest:
+        raise ValueError(f"public documentation source needs frozen_snapshot_manifest: {source['source_id']}")
+    manifest_path = Path(raw_manifest)
+    if not manifest_path.is_file():
+        raise ValueError(f"frozen documentation snapshot is missing: {source['source_id']}")
+    snapshot_manifest = _load(manifest_path)
+    snapshots = snapshot_manifest["sources"]
+    matching = [item for item in snapshots if isinstance(item, dict) and item.get("source_id") == source["source_id"]]
+    if len(matching) != 1:
+        raise ValueError(f"frozen documentation snapshot has no unique source record: {source['source_id']}")
+    snapshot = matching[0]
+    digest = snapshot.get("content_sha256")
+    relative = snapshot.get("path")
+    if not isinstance(digest, str) or not isinstance(relative, str):
+        raise ValueError(f"frozen documentation snapshot is incomplete: {source['source_id']}")
+    relative_path = Path(relative)
+    content_path = manifest_path.parent / relative_path
+    if relative_path.is_absolute() or ".." in relative_path.parts or not content_path.is_file():
+        raise ValueError(f"frozen documentation content is missing: {source['source_id']}")
+    if sha256_file(content_path) != digest:
+        raise ValueError(f"frozen documentation content digest mismatch: {source['source_id']}")
+    expected = source.get("expected_sha256")
+    if expected is not None and expected != digest:
+        raise ValueError(f"frozen documentation declared digest mismatch: {source['source_id']}")
+    return digest, "MATCHED" if expected is not None else "UNDECLARED"
+
+
 def _load(path: Path) -> dict[str, Any]:
     content = path.read_text(encoding="utf-8")
     loaded = yaml.safe_load(content) if path.suffix in {".yaml", ".yml"} else json.loads(content)
@@ -167,7 +198,12 @@ def audit_sources(manifest_path: Path, *, output_dir: Path, fetch_remote: bool) 
         dependency_status = "NOT_REQUIRED"
         content_sha256: str | None = None
         content_hash_status = "NOT_APPLICABLE"
-        if isinstance(local_path, str):
+        if source["source_kind"] == "public-documentation":
+            content_sha256, content_hash_status = _frozen_document_snapshot(source)
+            status = "AUDITED_FROZEN_DOCUMENT"
+            dependency_status = "AVAILABLE"
+            sensitive_status = "PUBLIC_DOCUMENTATION_SNAPSHOT_NO_TRAJECTORY_FIELDS"
+        elif isinstance(local_path, str):
             local = Path(local_path)
             if not local.is_file():
                 raise ValueError(f"local source is missing: {local}")

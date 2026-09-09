@@ -114,3 +114,46 @@ def test_document_freeze_writes_content_addressed_snapshot(monkeypatch: pytest.M
     assert snapshot["content_sha256"] == sha256_file(tmp_path / "raw" / snapshot["path"])
     assert snapshot["byte_size"] == len(b"<html>frozen document</html>")
     assert snapshot["content_hash_status"] == "UNDECLARED"
+
+
+def test_source_audit_requires_the_declared_frozen_document_bytes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import code_data_factory.sources.audit as audit
+
+    class Response:
+        headers = type("Headers", (), {"get_content_type": staticmethod(lambda: "text/html")})()
+
+        def read(self) -> bytes:
+            return b"<html>frozen document</html>"
+
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *_: object) -> None:
+            return None
+
+    monkeypatch.setattr(audit, "urlopen", lambda *_args, **_kwargs: Response())
+    source = {
+        "source_id": "docs",
+        "source_uri": "https://example.invalid/docs",
+        "revision": "v1",
+        "license": "PSF-2.0",
+        "usage_scope": "TRAIN",
+        "source_kind": "public-documentation",
+    }
+    source_manifest = tmp_path / "source.json"
+    source_manifest.write_text(json.dumps({"sources": [source]}), encoding="utf-8")
+    frozen = freeze_document_sources(source_manifest, output_dir=tmp_path / "raw")
+    source["frozen_snapshot_manifest"] = str(frozen)
+    source["expected_sha256"] = json.loads(frozen.read_text(encoding="utf-8"))["sources"][0]["content_sha256"]
+    audit_manifest = tmp_path / "audit.json"
+    audit_manifest.write_text(json.dumps({"sources": [source]}), encoding="utf-8")
+
+    audited = audit_sources(audit_manifest, output_dir=tmp_path / "audit", fetch_remote=True).sources[0]
+
+    assert audited.status == "AUDITED_FROZEN_DOCUMENT"
+    assert audited.content_hash_status == "MATCHED"
+    (tmp_path / "raw" / json.loads(frozen.read_text(encoding="utf-8"))["sources"][0]["path"]).unlink()
+    with pytest.raises(ValueError, match="content is missing"):
+        audit_sources(audit_manifest, output_dir=tmp_path / "audit-failed", fetch_remote=True)

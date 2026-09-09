@@ -5,6 +5,7 @@
       "source_uri": "https://docs.python.org/3.12/",
       "revision": "python-3.12",
       "expected_sha256": "00141385b81d6b292e90d7d0d37e590c87552977e8b26207362b8e9cd957943e",
+      "frozen_snapshot_manifest": "data/raw/python-docs-3.12/source_manifest.json",
       "license": "PSF-2.0",
       "usage_scope": "TRAIN",
       "source_kind": "public-documentation",
