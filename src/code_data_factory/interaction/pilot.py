@@ -42,6 +42,15 @@ def load_facts(config_path: Path) -> dict[str, dict[str, str]]:
             "unit": str(item["unit"]),
             "content": f"Frozen fact: one declared base quantity equals {item['value']} {item['unit']}.",
         }
+        companion_id = item.get("companion_document_id")
+        if companion_id is not None:
+            if not isinstance(companion_id, str) or companion_id in facts:
+                raise ValueError("pilot companion document ids must be unique strings")
+            facts[companion_id] = {
+                "value": "0",
+                "unit": str(item["unit"]),
+                "content": "Frozen companion fact: the declared comparison value is 0.",
+            }
     return facts
 
 
@@ -64,14 +73,15 @@ def _fixed_attempt(
     if not isinstance(document_ids, list) or not document_ids or not all(isinstance(item, str) for item in document_ids):
         raise PilotExecutionError("task must declare visible document ids")
     document_id = document_ids[0]
-    if document_id not in facts:
+    if any(document_id not in facts for document_id in document_ids):
         raise PilotExecutionError("task references a document not present in the frozen fact bundle")
     tools = RestrictedTools({key: value["content"] for key, value in facts.items()})
     attempt_id = str(uuid4())
     ledger = EventLedger(output_dir / attempt_id, attempt_id=attempt_id, task_id=task.task_id)
-    read_call = ledger.record_tool_call("read_document", {"document_id": document_id})
-    document = tools.read_document(document_id)
-    ledger.record_tool_result(read_call, {"document_id": document_id, "content": document})
+    for resource_id in document_ids:
+        read_call = ledger.record_tool_call("read_document", {"document_id": resource_id})
+        document = tools.read_document(resource_id)
+        ledger.record_tool_result(read_call, {"document_id": resource_id, "content": document})
     multiplier = _task_multiplier(task.task_id)
     fact = facts[document_id]
     if task.task_family == "calculation_conversion":
@@ -90,7 +100,14 @@ def _fixed_attempt(
         )
         value = tools.calculate("MULTIPLY", [multiplier, fact["value"]])
         ledger.record_tool_result(call_id, {"value": value, "unit": fact["unit"]})
-    actual = {"value": value, "unit": fact["unit"], "evidence": [document_id]}
+        if task.task_family == "cross_document_comparison":
+            companion = facts[document_ids[1]]
+            call_id = ledger.record_tool_call(
+                "calculate", {"operation": "SUBTRACT", "operands": [value, companion["value"]]}
+            )
+            value = tools.calculate("SUBTRACT", [value, companion["value"]])
+            ledger.record_tool_result(call_id, {"value": value, "unit": fact["unit"]})
+    actual = {"value": value, "unit": fact["unit"], "evidence": document_ids}
     ledger.seal("COMPLETED", final_output=actual)
     return {
         "attempt_id": attempt_id,
