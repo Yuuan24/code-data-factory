@@ -89,6 +89,7 @@ def prepare_dedup_review_queue(
     num_perm: int,
     threshold: float,
     review_size: int = 100,
+    write_template: bool = True,
 ) -> DedupReviewQueue:
     """Persist the fixed, outcome-free review packet before any external decision.
 
@@ -146,24 +147,25 @@ def prepare_dedup_review_queue(
             }
         )
     )
-    (output_dir / "dedup_review_decisions.template.json").write_bytes(
-        canonical_json_bytes(
-            {
-                "reviewer": "",
-                "review_queue_sha256": queue_sha256,
-                "decisions": [
-                    {
-                        "review_kind": item["review_kind"],
-                        "left_task_id": item["left_task_id"],
-                        "right_task_id": item["right_task_id"],
-                        "outcome": None,
-                        "reason_code": None,
-                    }
-                    for item in records
-                ],
-            }
+    if write_template:
+        (output_dir / "dedup_review_decisions.template.json").write_bytes(
+            canonical_json_bytes(
+                {
+                    "reviewer": "",
+                    "review_queue_sha256": queue_sha256,
+                    "decisions": [
+                        {
+                            "review_kind": item["review_kind"],
+                            "left_task_id": item["left_task_id"],
+                            "right_task_id": item["right_task_id"],
+                            "outcome": None,
+                            "reason_code": None,
+                        }
+                        for item in records
+                    ],
+                }
+            )
         )
-    )
     return DedupReviewQueue(records, len(candidates), queue_sha256)
 
 
@@ -241,6 +243,7 @@ def review_dedup_candidates(
         num_perm=num_perm,
         threshold=threshold,
         review_size=review_size,
+        write_template=False,
     )
     if review_queue_sha256 != queue.queue_sha256:
         raise DedupReviewError("external decisions do not match the fixed review queue")

@@ -69,6 +69,55 @@ def test_dedup_review_has_one_hundred_candidates_and_one_hundred_miss_probes(tmp
     assert (tmp_path / "audit" / "dedup_review.parquet").is_file()
 
 
+def test_apply_review_does_not_overwrite_the_external_submission(tmp_path: Path) -> None:
+    from code_data_factory.processing.dedup_review import review_dedup_submission
+
+    build = build_pilot_tasks(
+        Path("configs/tasks/pilot.yaml"),
+        output_dir=tmp_path / "pilot",
+        producer_run_id="review-test",
+        split_registry=SplitRegistry(policy_version="split-v1"),
+    )
+    audit = tmp_path / "audit"
+    queue = prepare_dedup_review_queue(
+        tasks=build.tasks,
+        expected_results=build.expected_results,
+        output_dir=audit,
+        seed=7,
+        num_perm=64,
+        threshold=0.8,
+    )
+    submission = {
+        "reviewer": "independent-reviewer",
+        "review_queue_sha256": queue.queue_sha256,
+        "decisions": [
+            {
+                "review_kind": item["review_kind"],
+                "left_task_id": item["left_task_id"],
+                "right_task_id": item["right_task_id"],
+                "outcome": "DISTINCT",
+                "reason_code": "INDEPENDENT_TEST_REVIEW",
+            }
+            for item in queue.records
+        ],
+    }
+    submission_path = audit / "dedup_review_decisions.template.json"
+    submission_path.write_text(json.dumps(submission), encoding="utf-8")
+    before = submission_path.read_bytes()
+
+    review_dedup_submission(
+        tasks=build.tasks,
+        expected_results=build.expected_results,
+        output_dir=audit,
+        submission_path=submission_path,
+        seed=7,
+        num_perm=64,
+        threshold=0.8,
+    )
+
+    assert submission_path.read_bytes() == before
+
+
 def test_dedup_review_rejects_automatically_missing_external_decisions(tmp_path: Path) -> None:
     build = build_pilot_tasks(
         Path("configs/tasks/pilot.yaml"),
