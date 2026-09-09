@@ -16,6 +16,26 @@ from code_data_factory.tasks.build import build_pilot_tasks
 from code_data_factory.tasks.splits import SplitRegistry
 
 
+class _FixtureChatTokenizer:
+    """Checkpoint-only tokenizer: never stands in for the frozen training tokenizer."""
+
+    chat_template: str | None = "us1-checkpoint-fixture-v1"
+
+    def encode(self, text: str, *, add_special_tokens: bool) -> list[int]:
+        del add_special_tokens
+        return list(text.encode("utf-8"))
+
+    def apply_chat_template(
+        self, conversation: list[dict[str, str]], *, tokenize: bool, add_generation_prompt: bool
+    ) -> list[int]:
+        if not tokenize or add_generation_prompt:
+            raise ValueError("fixture tokenizer only supports completed tokenized conversations")
+        return self.encode(
+            "".join(f"<{message['role']}>\n{message['content']}<eos>\n" for message in conversation),
+            add_special_tokens=False,
+        )
+
+
 def _fixture_history() -> list[dict[str, Any]]:
     return [
         {
@@ -92,6 +112,7 @@ def run_us1_software_checkpoint(
             tokenizer_name="test-byte-tokenizer",
             tokenizer_revision="v1",
             template_version="tool-chat-v1",
+            tokenizer=_FixtureChatTokenizer(),
         )
         source_record_id = imported.records[0].source_record_id
         publication = publish_dataset(

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -93,13 +95,16 @@ def write_quality_ledger(decisions: list[QualityDecision], *, output_dir: Path) 
 def decide_quality(
     *,
     attempts: list[dict[str, str]],
-    verifications: list[VerificationRecord],
+    verifications: Sequence[VerificationRecord | dict[str, Any]],
     duplicate_representatives: dict[str, str],
     policy_version: str,
 ) -> QualityResult:
     """Accept only independently verified pass records; preserve unknowns as quarantine."""
 
-    by_attempt = {record.attempt_id: record for record in verifications}
+    by_attempt = {
+        record.attempt_id if isinstance(record, VerificationRecord) else str(record["attempt_id"]): record
+        for record in verifications
+    }
     decisions: list[QualityDecision] = []
     accepted: list[str] = []
     quarantined: list[str] = []
@@ -110,18 +115,21 @@ def decide_quality(
         if verification is None:
             decision = _decision(attempt_id, "QUARANTINE", ("MISSING_VERIFICATION",), policy_version)
             quarantined.append(attempt_id)
-        elif verification.status is not VerificationStatus.VERIFIED or verification.outcome is Outcome.UNKNOWN:
-            decision = _decision(attempt_id, "QUARANTINE", ("VERIFICATION_UNKNOWN",), policy_version)
-            quarantined.append(attempt_id)
-        elif verification.outcome is Outcome.FAIL:
-            decision = _decision(attempt_id, "REJECT", ("VERIFICATION_FAIL",), policy_version, reliable_error_fragment=True)
-            rejected.append(attempt_id)
-        elif duplicate_representatives.get(attempt_id) != attempt_id:
-            decision = _decision(attempt_id, "REJECT", ("DUPLICATE_NON_REPRESENTATIVE",), policy_version)
-            rejected.append(attempt_id)
         else:
-            decision = _decision(attempt_id, "ACCEPT", ("VERIFIED_PASS",), policy_version)
-            accepted.append(attempt_id)
+            status = verification.status if isinstance(verification, VerificationRecord) else VerificationStatus(str(verification["status"]))
+            outcome = verification.outcome if isinstance(verification, VerificationRecord) else Outcome(str(verification["outcome"]))
+            if status is not VerificationStatus.VERIFIED or outcome is Outcome.UNKNOWN:
+                decision = _decision(attempt_id, "QUARANTINE", ("VERIFICATION_UNKNOWN",), policy_version)
+                quarantined.append(attempt_id)
+            elif outcome is Outcome.FAIL:
+                decision = _decision(attempt_id, "REJECT", ("VERIFICATION_FAIL",), policy_version, reliable_error_fragment=True)
+                rejected.append(attempt_id)
+            elif duplicate_representatives.get(attempt_id) != attempt_id:
+                decision = _decision(attempt_id, "REJECT", ("DUPLICATE_NON_REPRESENTATIVE",), policy_version)
+                rejected.append(attempt_id)
+            else:
+                decision = _decision(attempt_id, "ACCEPT", ("VERIFIED_PASS",), policy_version)
+                accepted.append(attempt_id)
         decisions.append(decision)
     return QualityResult(
         decisions=decisions,

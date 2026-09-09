@@ -19,6 +19,9 @@ stages:
     deps:
       - data/build-inputs/pilot.json
       - configs/quality/build.yaml
+      - src/code_data_factory/datasets/build.py
+      - src/code_data_factory/processing/dedup.py
+      - src/code_data_factory/processing/quality.py
     outs:
       - data/draft/local
   build_us1_ray:
@@ -30,5 +33,8 @@ stages:
     deps:
       - data/build-inputs/pilot.json
       - configs/quality/build.yaml
+      - src/code_data_factory/datasets/build.py
+      - src/code_data_factory/processing/dedup.py
+      - src/code_data_factory/processing/quality.py
     outs:
       - data/draft/ray

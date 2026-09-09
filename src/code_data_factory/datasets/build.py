@@ -11,6 +11,8 @@ from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_b
 from code_data_factory.datasets.build_input import BuildInput
 from code_data_factory.processing.backends import process_events
 from code_data_factory.processing.commit import commit_build
+from code_data_factory.processing.dedup import deduplicate_tasks, write_dedup_evidence
+from code_data_factory.processing.quality import decide_quality, write_quality_ledger
 
 
 @dataclass(frozen=True)
@@ -41,26 +43,60 @@ def build_draft(*, build_input: BuildInput, output_dir: Path, backend: str, run_
     verification_by_attempt = {str(item["attempt_id"]): item for item in verifications}
     if len(task_by_id) != len(tasks):
         raise ValueError("task manifests contain duplicate task_id values")
+    task_roots = {str(item["task_id"]): path.parent for path in build_input.task_manifests for item in _object(path, "tasks")}
+    dedup_input: list[dict[str, Any]] = []
+    for task in tasks:
+        instruction_ref = task.get("instruction_ref")
+        if not isinstance(instruction_ref, dict) or not isinstance(instruction_ref.get("uri"), str):
+            raise ValueError(f"task {task['task_id']} lacks a materialized instruction reference")
+        instruction_path = task_roots[str(task["task_id"])] / instruction_ref["uri"]
+        instruction_payload = json.loads(instruction_path.read_text(encoding="utf-8"))
+        dedup_input.append(
+            {
+                "task_id": task["task_id"],
+                "task_family": task["task_family"],
+                "instruction": instruction_payload.get("instruction", ""),
+                "facts": {
+                    "source_record_ids": task["source_record_ids"],
+                    "derivation_root_ids": task["derivation_root_ids"],
+                },
+            }
+        )
+    dedup = deduplicate_tasks(dedup_input, num_perm=64, threshold=0.8, seed=7)
+    attempt_by_task = {str(attempt["task_id"]): str(attempt["attempt_id"]) for attempt in attempts}
+    attempt_representatives = {
+        attempt_id: attempt_by_task.get(task_representative, attempt_id)
+        for task_id, task_representative in dedup.representatives.items()
+        for attempt_id in [attempt_by_task.get(task_id)]
+        if attempt_id is not None
+    }
+    quality = decide_quality(
+        attempts=[{"attempt_id": str(attempt["attempt_id"])} for attempt in attempts],
+        verifications=verifications,
+        duplicate_representatives=attempt_representatives,
+        policy_version=build_input.rule_version,
+    )
+    decision_by_attempt = {decision.subject_id: decision for decision in quality.decisions}
     rows: list[dict[str, Any]] = []
     events: list[dict[str, Any]] = []
     for attempt in attempts:
         task_id = str(attempt.get("task_id", ""))
         attempt_id = str(attempt.get("attempt_id", ""))
-        task = task_by_id.get(task_id)
+        task_entry = task_by_id.get(task_id)
         verification = verification_by_attempt.get(attempt_id)
-        if task is None or verification is None:
+        if task_entry is None or verification is None:
             raise ValueError(f"attempt {attempt_id} lacks a task or verification record")
         status, outcome = str(verification.get("status")), str(verification.get("outcome"))
-        decision = "ACCEPT" if status == "VERIFIED" and outcome == "PASS" else "QUARANTINE"
+        decision = decision_by_attempt[attempt_id].action
         # Fixture records may support software integration tests, never training.
-        usage_scope = str(attempt.get("usage_scope", task.get("usage_scope", "DEVELOPMENT")))
+        usage_scope = str(attempt.get("usage_scope", task_entry.get("usage_scope", "DEVELOPMENT")))
         if str(attempt.get("actor_kind")) == "SCRIPTED_FIXTURE" and usage_scope == "TRAIN":
             usage_scope = "DEVELOPMENT"
         rows.append(
             {
                 "task_id": task_id,
                 "attempt_id": attempt_id,
-                "source_record_ids": task["source_record_ids"],
+                "source_record_ids": task_entry["source_record_ids"],
                 "usage_scope": usage_scope,
                 "verification_status": status,
                 "outcome": outcome,
@@ -73,17 +109,11 @@ def build_draft(*, build_input: BuildInput, output_dir: Path, backend: str, run_
     processed = process_events(events, backend=backend, observation_inline_limit=4096)
     commit = commit_build(rows, destination=output_dir / "snapshots", run_id=run_id, previous=None, fail_at=None)
     output_dir.mkdir(parents=True, exist_ok=True)
+    write_dedup_evidence(dedup, output_dir=output_dir / "dedup")
+    write_quality_ledger(quality.decisions, output_dir=output_dir)
     input_hash = sha256_bytes(canonical_json_bytes(build_input.content_hashes))
     (output_dir / "membership.json").write_bytes(canonical_json_bytes(list(commit.rows)))
     (output_dir / "events.json").write_bytes(canonical_json_bytes(processed.rows))
-    (output_dir / "quality_decisions.json").write_bytes(
-        canonical_json_bytes(
-            [
-                {"attempt_id": row["attempt_id"], "action": row["decision"], "policy_version": build_input.rule_version}
-                for row in commit.rows
-            ]
-        )
-    )
     (output_dir / "build_receipt.json").write_bytes(
         canonical_json_bytes(
             {
