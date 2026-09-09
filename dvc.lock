@@ -1,0 +1,60 @@
+schema: '2.0'
+stages:
+  materialize_us1_inputs:
+    cmd: uv run --group data cdf task build --config configs/tasks/pilot.yaml
+      --output-dir data/build-inputs
+    deps:
+    - path: configs/tasks/pilot.yaml
+      hash: md5
+      md5: f0f2c9b241d3731cbe8078013e705153
+      size: 1060
+    - path: src/code_data_factory/tasks/build.py
+      hash: md5
+      md5: bad8434bad051235ad05260ea3236abd
+      size: 9541
+    - path: src/code_data_factory/tasks/splits.py
+      hash: md5
+      md5: 8297cf47d7eb26e6e65fa086e4606ae0
+      size: 4658
+    outs:
+    - path: data/build-inputs
+      hash: md5
+      md5: 302daa127c7129edb835319e28b7104d.dir
+      size: 374090
+      nfiles: 707
+  build_us1_local:
+    cmd: uv run --group data cdf data build --input data/build-inputs/pilot.json
+      --backend local --output-dir data/draft/local
+    deps:
+    - path: configs/quality/build.yaml
+      hash: md5
+      md5: ae54c4637e5a6d031e0c11dcd3a93d1c
+      size: 136
+    - path: data/build-inputs/pilot.json
+      hash: md5
+      md5: b70f0444a5fa471f5a0ebcdd0db6f356
+      size: 258
+    outs:
+    - path: data/draft/local
+      hash: md5
+      md5: e8e11a0d060561342e5826c80988a3db.dir
+      size: 105444
+      nfiles: 8
+  build_us1_ray:
+    cmd: uv run --group data cdf data build --input data/build-inputs/pilot.json
+      --backend ray --output-dir data/draft/ray
+    deps:
+    - path: configs/quality/build.yaml
+      hash: md5
+      md5: ae54c4637e5a6d031e0c11dcd3a93d1c
+      size: 136
+    - path: data/build-inputs/pilot.json
+      hash: md5
+      md5: b70f0444a5fa471f5a0ebcdd0db6f356
+      size: 258
+    outs:
+    - path: data/draft/ray
+      hash: md5
+      md5: 7697de5129e17a904a9e88c1f615f870.dir
+      size: 105442
+      nfiles: 8

@@ -13,6 +13,7 @@ from typing import cast
 
 import yaml
 
+from code_data_factory.datasets.build import build_draft
 from code_data_factory.datasets.build_input import BuildInputError, load_build_input
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
@@ -101,7 +102,12 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
         if parsed.config is None:
             raise ValueError("task build requires --config")
         task_result = build_pilot_tasks(parsed.config, output_dir=output, producer_run_id=run_id, split_registry=SplitRegistry(policy_version="split-v1"))
-        return _completed(command, run_id, [output / "task_manifest.json"], {"tasks": len(task_result.tasks)})
+        return _completed(
+            command,
+            run_id,
+            [output / name for name in ("task_manifest.json", "source_manifest.json", "attempt_manifest.json", "verification_manifest.json", "split_registry.json")],
+            {"tasks": len(task_result.tasks), "task_assets": len(list((output / "task-assets").glob("*.json")) )},
+        )
     if parsed.command == ["trajectory", "import"]:
         if parsed.source is None or parsed.adapter != "toucan":
             raise ValueError("trajectory import requires --source and --adapter toucan")
@@ -114,10 +120,8 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
         if parsed.input is None or parsed.backend is None:
             raise ValueError("data build requires --input and --backend")
         build_input = load_build_input(parsed.input)
-        output.mkdir(parents=True, exist_ok=True)
-        receipt = output / "build_input_receipt.json"
-        receipt.write_text(json.dumps({"rule_version": build_input.rule_version, "content_hashes": build_input.content_hashes}, sort_keys=True), encoding="utf-8")
-        return _completed(command, run_id, [receipt], {"inputs": len(build_input.content_hashes)})
+        result = build_draft(build_input=build_input, output_dir=output, backend=parsed.backend, run_id=run_id)
+        return _completed(command, run_id, [output / "build_receipt.json", output / "membership.json", output / "quality_decisions.json"], {"inputs": len(build_input.content_hashes), "members": result.member_count})
     if parsed.command == ["dataset", "publish"]:
         if parsed.draft is None:
             raise ValueError("dataset publish requires --draft")

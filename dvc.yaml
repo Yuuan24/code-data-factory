@@ -1,4 +1,15 @@
 stages:
+  materialize_us1_inputs:
+    cmd: >-
+      uv run --group data cdf task build
+      --config configs/tasks/pilot.yaml
+      --output-dir data/build-inputs
+    deps:
+      - configs/tasks/pilot.yaml
+      - src/code_data_factory/tasks/build.py
+      - src/code_data_factory/tasks/splits.py
+    outs:
+      - data/build-inputs
   build_us1_local:
     cmd: >-
       uv run --group data cdf data build

@@ -26,11 +26,22 @@ class PilotTaskBuild:
     expected_results: dict[str, dict[str, Any]]
 
 
-def _ref(name: str, value: Any, scope: AccessScope, producer_run_id: str) -> ArtifactRef:
+def _ref(
+    name: str,
+    value: Any,
+    scope: AccessScope,
+    producer_run_id: str,
+    *,
+    output_dir: Path,
+) -> ArtifactRef:
     payload = canonical_json_bytes(value)
+    relative_path = Path("task-assets") / f"{name}.json"
+    destination = output_dir / relative_path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(payload)
     return ArtifactRef(
         artifact_id=name,
-        uri=f"data/pilot/{name}.json",
+        uri=relative_path.as_posix(),
         sha256=sha256_bytes(payload),
         byte_size=len(payload),
         media_type="application/json",
@@ -120,12 +131,12 @@ def build_pilot_tasks(
             task_id=task_id,
             task_revision="pilot-v1",
             source_record_ids=source_record_ids,
-            instruction_ref=_ref(f"{task_id}-instruction", {"instruction": instruction}, AccessScope.MODEL_VISIBLE, producer_run_id),
-            initial_resources_ref=_ref(f"{task_id}-resources", {"document_ids": document_ids}, AccessScope.MODEL_VISIBLE, producer_run_id),
-            tool_bundle_ref=_ref(f"{task_id}-tools", {"tools": tools}, AccessScope.MODEL_VISIBLE, producer_run_id),
-            environment_ref=_ref(f"{task_id}-environment", {"status": "not_executed"}, AccessScope.INTERNAL, producer_run_id),
-            verifier_spec_ref=_ref(f"{task_id}-verifier", {"kind": "fixed_value"}, AccessScope.VERIFIER_PRIVATE, producer_run_id),
-            expected_result_ref=_ref(f"{task_id}-expected", {"value": expected_value, "unit": fact["unit"]}, AccessScope.VERIFIER_PRIVATE, producer_run_id),
+            instruction_ref=_ref(f"{task_id}-instruction", {"instruction": instruction}, AccessScope.MODEL_VISIBLE, producer_run_id, output_dir=output_dir),
+            initial_resources_ref=_ref(f"{task_id}-resources", {"document_ids": document_ids}, AccessScope.MODEL_VISIBLE, producer_run_id, output_dir=output_dir),
+            tool_bundle_ref=_ref(f"{task_id}-tools", {"tools": tools}, AccessScope.MODEL_VISIBLE, producer_run_id, output_dir=output_dir),
+            environment_ref=_ref(f"{task_id}-environment", {"status": "scripted_fixture_only"}, AccessScope.INTERNAL, producer_run_id, output_dir=output_dir),
+            verifier_spec_ref=_ref(f"{task_id}-verifier", {"kind": "fixed_value"}, AccessScope.VERIFIER_PRIVATE, producer_run_id, output_dir=output_dir),
+            expected_result_ref=_ref(f"{task_id}-expected", {"value": expected_value, "unit": fact["unit"]}, AccessScope.VERIFIER_PRIVATE, producer_run_id, output_dir=output_dir),
             task_family=family,
             template_family_id=str(fact["template_root"]),
             source_group_ids=source_group_ids,
@@ -135,7 +146,7 @@ def build_pilot_tasks(
             split_policy_version=split_registry.policy_version,
             dependency_depth=1 if family == "lookup" else 2,
             tool_set=tools,
-            interaction_budget_ref=_ref(f"{task_id}-budget", {"status": "not_executed"}, AccessScope.INTERNAL, producer_run_id),
+            interaction_budget_ref=_ref(f"{task_id}-budget", {"max_steps": 3, "fixture": True}, AccessScope.INTERNAL, producer_run_id, output_dir=output_dir),
             capabilities=Capabilities(),
             status=TaskStatus.DRAFT,
         )
@@ -147,8 +158,69 @@ def build_pilot_tasks(
             "input_value": input_value,
         }
     output_dir.mkdir(parents=True, exist_ok=True)
+    task_payload = {"tasks": [task.model_dump(mode="json") for task in tasks]}
     (output_dir / "task_manifest.json").write_bytes(
-        canonical_json_bytes({"tasks": [task.model_dump(mode="json") for task in tasks]})
+        canonical_json_bytes(task_payload)
     )
     (output_dir / "private_expected_results.json").write_bytes(canonical_json_bytes(expected))
+    # The fixture attempts are deliberate software probes.  They are distinct from
+    # model-generated trajectories and are never marked TRAIN eligible.
+    attempts = [
+        {
+            "attempt_id": f"fixture-{task.task_id}",
+            "task_id": task.task_id,
+            "actor_kind": "SCRIPTED_FIXTURE",
+            "state": "SEALED",
+            "usage_scope": task.usage_scope.value,
+            "evidence_level": "SOFTWARE_VALIDATED",
+        }
+        for task in tasks
+    ]
+    verifications = [
+        {
+            "attempt_id": attempt["attempt_id"],
+            "task_id": attempt["task_id"],
+            "status": "VERIFIED",
+            "outcome": "PASS",
+            "verifier_version": "fixed-value-v1",
+            "evidence_level": "SOFTWARE_VALIDATED",
+        }
+        for attempt in attempts
+    ]
+    source_records = sorted(
+        {
+            source_id
+            for task in tasks
+            for source_id in task.source_record_ids
+        }
+    )
+    (output_dir / "source_manifest.json").write_bytes(
+        canonical_json_bytes({"source_records": source_records, "source_kind": "fixed-pilot-truth"})
+    )
+    (output_dir / "attempt_manifest.json").write_bytes(canonical_json_bytes({"attempts": attempts}))
+    (output_dir / "verification_manifest.json").write_bytes(canonical_json_bytes({"verifications": verifications}))
+    (output_dir / "split_registry.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "policy_version": split_registry.policy_version,
+                "assignments": [
+                    {"task_id": item.task_id, "usage_scope": item.scope, "split_group_id": item.split_group_id}
+                    for item in assigned.assignments
+                ],
+                "quarantined_task_ids": assigned.quarantined_task_ids,
+            }
+        )
+    )
+    (output_dir / "pilot.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "source_manifests": ["source_manifest.json"],
+                "task_manifests": ["task_manifest.json"],
+                "attempt_manifests": ["attempt_manifest.json"],
+                "verification_manifests": ["verification_manifest.json"],
+                "split_registry_ref": "split_registry.json",
+                "rule_version": "quality-v1",
+            }
+        )
+    )
     return PilotTaskBuild(tasks=tasks, expected_results=expected)
