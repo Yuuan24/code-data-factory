@@ -11,7 +11,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
+
+import pyarrow.parquet as pq
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes
 from code_data_factory.contracts.tasks import AccessScope, ArtifactRef
@@ -81,14 +83,35 @@ def _event_type(message: dict[str, Any]) -> EventType:
     return EventType.OBSERVATION
 
 
+def _records_from_source(source: Path) -> list[object]:
+    """Load JSON or Parquet history rows without interpreting source payloads."""
+
+    if source.suffix == ".parquet":
+        table = pq.read_table(source)
+        return cast(list[object], table.to_pylist())
+    raw = json.loads(source.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise ValueError("Toucan source must be a JSON array or a Parquet table")
+    return raw
+
+
+def _messages(value: object) -> list[dict[str, Any]] | None:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        return None
+    return value
+
+
 def import_toucan_records(
     source: Path, *, snapshot_id: str, producer_run_id: str
 ) -> ImportedToucan:
-    """Import a JSON array of history records and isolate ambiguous call links."""
+    """Import JSON/Parquet history records and isolate ambiguous call links."""
 
-    raw = json.loads(source.read_text(encoding="utf-8"))
-    if not isinstance(raw, list):
-        raise ValueError("Toucan source must be a JSON array")
+    raw = _records_from_source(source)
 
     records: list[ImportedSourceRecord] = []
     trajectories: list[Trajectory] = []
@@ -99,8 +122,8 @@ def import_toucan_records(
             quarantine.append(QuarantinedRecord(upstream_id="<unknown>", reason=AssociationAmbiguity.INVALID_MESSAGE))
             continue
         upstream_id = row["id"]
-        messages = row.get("messages")
-        if not isinstance(messages, list) or not all(isinstance(item, dict) for item in messages):
+        messages = _messages(row.get("messages"))
+        if messages is None:
             quarantine.append(QuarantinedRecord(upstream_id=upstream_id, reason=AssociationAmbiguity.INVALID_MESSAGE))
             continue
         calls: set[str] = set()
@@ -181,3 +204,37 @@ def import_toucan_records(
         )
         trajectories.append(Trajectory(attempt=attempt, events=events))
     return ImportedToucan(records=records, trajectories=trajectories, quarantine=quarantine)
+
+
+def write_import_result(result: ImportedToucan, *, output_dir: Path) -> dict[str, Path]:
+    """Persist consumable manifests without emitting historical raw payload text."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    records_path = output_dir / "source_records.json"
+    attempts_path = output_dir / "attempt_manifest.json"
+    events_path = output_dir / "event_manifest.json"
+    quarantine_path = output_dir / "quarantine.json"
+    records_path.write_bytes(
+        canonical_json_bytes(
+            {"source_records": [record.__dict__ | {"raw_ref": record.raw_ref.model_dump(mode="json")} for record in result.records]}
+        )
+    )
+    attempts_path.write_bytes(
+        canonical_json_bytes(
+            {"attempts": [trajectory.attempt.model_dump(mode="json") for trajectory in result.trajectories]}
+        )
+    )
+    events_path.write_bytes(
+        canonical_json_bytes(
+            {"events": [event.model_dump(mode="json") for trajectory in result.trajectories for event in trajectory.events]}
+        )
+    )
+    quarantine_path.write_bytes(
+        canonical_json_bytes({"quarantine": [item.__dict__ for item in result.quarantine]})
+    )
+    return {
+        "source_records": records_path,
+        "attempts": attempts_path,
+        "events": events_path,
+        "quarantine": quarantine_path,
+    }

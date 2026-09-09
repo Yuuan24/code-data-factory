@@ -3,7 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from code_data_factory.sources.toucan import AssociationAmbiguity, import_toucan_records
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+from code_data_factory.sources.toucan import (
+    AssociationAmbiguity,
+    import_toucan_records,
+    write_import_result,
+)
 
 
 def _write_source(path: Path) -> None:
@@ -103,3 +110,40 @@ def test_import_keeps_missing_environment_in_historical_only(tmp_path: Path) -> 
     assert imported.records[0].usage_scope == "HISTORICAL_ONLY"
     assert imported.trajectories[0].attempt.actor_kind.value == "HISTORICAL_IMPORT"
     assert imported.trajectories[0].attempt.policy_ref is None
+
+
+def test_import_reads_parquet_history_without_evaluating_message_text(tmp_path: Path) -> None:
+    source = tmp_path / "toucan.parquet"
+    pq.write_table(
+        pa.table(
+            {
+                "id": ["parquet-safe"],
+                "messages": [
+                    json.dumps(
+                        [
+                            {"role": "user", "content": "__import__('os').system('false')"},
+                            {"role": "assistant", "content": "plain text only"},
+                        ]
+                    )
+                ],
+            }
+        ),
+        source,
+    )
+
+    imported = import_toucan_records(source, snapshot_id="toucan-test", producer_run_id="run-1")
+
+    assert [record.upstream_id for record in imported.records] == ["parquet-safe"]
+    assert imported.trajectories[0].attempt.actor_kind.value == "HISTORICAL_IMPORT"
+
+
+def test_import_writes_consumable_manifests_without_raw_message_payload(tmp_path: Path) -> None:
+    source = tmp_path / "toucan.json"
+    _write_source(source)
+    imported = import_toucan_records(source, snapshot_id="toucan-test", producer_run_id="run-1")
+
+    paths = write_import_result(imported, output_dir=tmp_path / "normalized")
+
+    assert all(path.is_file() for path in paths.values())
+    assert "Find the length" not in paths["source_records"].read_text(encoding="utf-8")
+    assert json.loads(paths["attempts"].read_text(encoding="utf-8"))["attempts"][0]["actor_kind"] == "HISTORICAL_IMPORT"

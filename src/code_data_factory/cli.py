@@ -19,7 +19,7 @@ from code_data_factory.datasets.export_sft import ExportError, export_sft_exampl
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
 from code_data_factory.sources.audit import audit_sources
 from code_data_factory.sources.revoke import revoke_source
-from code_data_factory.sources.toucan import import_toucan_records
+from code_data_factory.sources.toucan import import_toucan_records, write_import_result
 from code_data_factory.tasks.build import build_pilot_tasks
 from code_data_factory.tasks.splits import SplitRegistry
 
@@ -112,10 +112,10 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
         if parsed.source is None or parsed.adapter != "toucan":
             raise ValueError("trajectory import requires --source and --adapter toucan")
         import_result = import_toucan_records(parsed.source, snapshot_id="toucan-import", producer_run_id=run_id)
-        output.mkdir(parents=True, exist_ok=True)
+        paths = write_import_result(import_result, output_dir=output)
         summary = output / "import_summary.json"
         summary.write_text(json.dumps({"records": len(import_result.records), "quarantine": len(import_result.quarantine)}), encoding="utf-8")
-        return _completed(command, run_id, [summary], {"records": len(import_result.records), "quarantine": len(import_result.quarantine)})
+        return _completed(command, run_id, [summary, *paths.values()], {"records": len(import_result.records), "quarantine": len(import_result.quarantine)})
     if parsed.command == ["data", "build"]:
         if parsed.input is None or parsed.backend is None:
             raise ValueError("data build requires --input and --backend")
