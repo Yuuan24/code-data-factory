@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -24,6 +25,13 @@ class DedupReviewQueue:
     records: tuple[dict[str, Any], ...]
     candidate_pairs_generated: int
     queue_sha256: str
+
+
+@dataclass(frozen=True)
+class ExternalReviewSubmission:
+    reviewer: str
+    review_queue_sha256: str
+    decisions: dict[tuple[str, str, str], dict[str, str]]
 
 
 @dataclass(frozen=True)
@@ -138,7 +146,69 @@ def prepare_dedup_review_queue(
             }
         )
     )
+    (output_dir / "dedup_review_decisions.template.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "reviewer": "",
+                "review_queue_sha256": queue_sha256,
+                "decisions": [
+                    {
+                        "review_kind": item["review_kind"],
+                        "left_task_id": item["left_task_id"],
+                        "right_task_id": item["right_task_id"],
+                        "outcome": None,
+                        "reason_code": None,
+                    }
+                    for item in records
+                ],
+            }
+        )
+    )
     return DedupReviewQueue(records, len(candidates), queue_sha256)
+
+
+def load_external_review_submission(path: Path) -> ExternalReviewSubmission:
+    """Load a human-editable decision file without trusting its pair coverage."""
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise DedupReviewError("external review submission is unreadable") from error
+    if not isinstance(payload, dict):
+        raise DedupReviewError("external review submission must be an object")
+    reviewer = payload.get("reviewer")
+    queue_sha256 = payload.get("review_queue_sha256")
+    raw_decisions = payload.get("decisions")
+    if not isinstance(reviewer, str) or not reviewer.strip():
+        raise DedupReviewError("external review submission requires reviewer")
+    if not isinstance(queue_sha256, str) or not queue_sha256:
+        raise DedupReviewError("external review submission requires review_queue_sha256")
+    if not isinstance(raw_decisions, list):
+        raise DedupReviewError("external review submission requires decisions")
+    decisions: dict[tuple[str, str, str], dict[str, str]] = {}
+    for item in raw_decisions:
+        if not isinstance(item, dict):
+            raise DedupReviewError("external review decision must be an object")
+        kind, left, right = item.get("review_kind"), item.get("left_task_id"), item.get("right_task_id")
+        outcome, reason_code = item.get("outcome"), item.get("reason_code")
+        if (
+            not isinstance(kind, str)
+            or not kind
+            or not isinstance(left, str)
+            or not left
+            or not isinstance(right, str)
+            or not right
+            or not isinstance(outcome, str)
+            or not outcome
+            or not isinstance(reason_code, str)
+            or not reason_code
+        ):
+            raise DedupReviewError("external review decision is incomplete")
+        key = (kind, left, right)
+        if key in decisions:
+            raise DedupReviewError("external review submission contains duplicate pair")
+        decisions[key] = {"outcome": outcome, "reason_code": reason_code}
+    return ExternalReviewSubmission(reviewer, queue_sha256, decisions)
 
 
 def review_dedup_candidates(
@@ -218,3 +288,31 @@ def review_dedup_candidates(
         canonical_json_bytes(asdict(receipt))
     )
     return receipt
+
+
+def review_dedup_submission(
+    *,
+    tasks: list[TaskPackage],
+    expected_results: dict[str, dict[str, Any]],
+    output_dir: Path,
+    submission_path: Path,
+    seed: int,
+    num_perm: int,
+    threshold: float,
+    review_size: int = 100,
+) -> DedupReviewReceipt:
+    """Apply a validated external review file to the frozen queue."""
+
+    submission = load_external_review_submission(submission_path)
+    return review_dedup_candidates(
+        tasks=tasks,
+        expected_results=expected_results,
+        output_dir=output_dir,
+        reviewer=submission.reviewer,
+        decisions=submission.decisions,
+        review_queue_sha256=submission.review_queue_sha256,
+        seed=seed,
+        num_perm=num_perm,
+        threshold=threshold,
+        review_size=review_size,
+    )
