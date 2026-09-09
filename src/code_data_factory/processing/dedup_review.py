@@ -20,6 +20,13 @@ class DedupReviewError(ValueError):
 
 
 @dataclass(frozen=True)
+class DedupReviewQueue:
+    records: tuple[dict[str, Any], ...]
+    candidate_pairs_generated: int
+    queue_sha256: str
+
+
+@dataclass(frozen=True)
 class DedupReviewReceipt:
     candidate_pairs_generated: int
     reviewed_candidate_pairs: int
@@ -27,6 +34,7 @@ class DedupReviewReceipt:
     reviewed_duplicates: int
     missed_duplicates: int
     semantic_vector_review: str
+    review_queue_sha256: str
     review_sha256: str
 
 
@@ -64,25 +72,20 @@ def _review_tasks(
     return rows, semantic_keys
 
 
-def review_dedup_candidates(
+def prepare_dedup_review_queue(
     *,
     tasks: list[TaskPackage],
     expected_results: dict[str, dict[str, Any]],
     output_dir: Path,
-    reviewer: str,
-    decisions: dict[tuple[str, str, str], dict[str, str]],
     seed: int,
     num_perm: int,
     threshold: float,
     review_size: int = 100,
-) -> DedupReviewReceipt:
-    """Persist externally supplied review decisions for fixed candidate pairs.
+) -> DedupReviewQueue:
+    """Persist the fixed, outcome-free review packet before any external decision.
 
-    The review basis is bounded task metadata plus private expected numeric results;
-    no source prompt, tool argument, observation, or historical raw record is copied.
-    This function deliberately never derives ``outcome`` from task fields: a
-    caller must supply every human/independent-review decision for the fixed
-    sample or the audit fails closed.
+    The queue hash is later required when accepting decisions, so an answer for
+    one candidate/probe sample cannot be silently reused for another sample.
     """
 
     rows, semantic_keys = _review_tasks(tasks, expected_results)
@@ -104,34 +107,93 @@ def review_dedup_candidates(
             f"non-candidate pool has {len(non_candidates)} pairs; requires {review_size} probes"
         )
     probe_pairs = random.Random(seed).sample(non_candidates, review_size)
+    records = tuple(
+        {
+            "review_kind": review_kind,
+            "left_task_id": left,
+            "right_task_id": right,
+            "left_task_family": semantic_keys[left][0],
+            "right_task_family": semantic_keys[right][0],
+            "left_input_value": semantic_keys[left][2],
+            "right_input_value": semantic_keys[right][2],
+            "left_expected_value": semantic_keys[left][3],
+            "right_expected_value": semantic_keys[right][3],
+            "review_basis": "TASK_METADATA_AND_PRIVATE_EXPECTED_RESULT",
+        }
+        for review_kind, pairs in (
+            ("CANDIDATE", candidates[:review_size]),
+            ("MISS_PROBE", probe_pairs),
+        )
+        for left, right in pairs
+    )
+    queue_sha256 = sha256_bytes(canonical_json_bytes(records))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pq.write_table(pa.Table.from_pylist(list(records)), output_dir / "dedup_review_queue.parquet")
+    (output_dir / "dedup_review_queue.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "candidate_pairs_generated": len(candidates),
+                "queue_sha256": queue_sha256,
+                "records": records,
+            }
+        )
+    )
+    return DedupReviewQueue(records, len(candidates), queue_sha256)
+
+
+def review_dedup_candidates(
+    *,
+    tasks: list[TaskPackage],
+    expected_results: dict[str, dict[str, Any]],
+    output_dir: Path,
+    reviewer: str,
+    decisions: dict[tuple[str, str, str], dict[str, str]],
+    review_queue_sha256: str,
+    seed: int,
+    num_perm: int,
+    threshold: float,
+    review_size: int = 100,
+) -> DedupReviewReceipt:
+    """Persist externally supplied review decisions for fixed candidate pairs.
+
+    The review basis is bounded task metadata plus private expected numeric results;
+    no source prompt, tool argument, observation, or historical raw record is copied.
+    This function deliberately never derives ``outcome`` from task fields: a
+    caller must supply every human/independent-review decision for the fixed
+    sample or the audit fails closed.
+    """
+
+    queue = prepare_dedup_review_queue(
+        tasks=tasks,
+        expected_results=expected_results,
+        output_dir=output_dir,
+        seed=seed,
+        num_perm=num_perm,
+        threshold=threshold,
+        review_size=review_size,
+    )
+    if review_queue_sha256 != queue.queue_sha256:
+        raise DedupReviewError("external decisions do not match the fixed review queue")
     records: list[dict[str, Any]] = []
-    for review_kind, pairs in (("CANDIDATE", candidates[:review_size]), ("MISS_PROBE", probe_pairs)):
-        for left, right in pairs:
-            decision = decisions.get((review_kind, left, right))
-            if not isinstance(decision, dict):
-                raise DedupReviewError(f"missing external decision for {review_kind}:{left}:{right}")
-            outcome = decision.get("outcome")
-            reason_code = decision.get("reason_code")
-            if outcome not in {"DUPLICATE", "DISTINCT"} or not isinstance(reason_code, str) or not reason_code:
-                raise DedupReviewError(f"invalid external decision for {review_kind}:{left}:{right}")
-            left_key, right_key = semantic_keys[left], semantic_keys[right]
-            records.append(
-                {
-                    "review_kind": review_kind,
-                    "left_task_id": left,
-                    "right_task_id": right,
-                    "left_task_family": left_key[0],
-                    "right_task_family": right_key[0],
-                    "left_input_value": left_key[2],
-                    "right_input_value": right_key[2],
-                    "left_expected_value": left_key[3],
-                    "right_expected_value": right_key[3],
-                    "outcome": outcome,
-                    "reason_code": reason_code,
-                    "reviewer": reviewer,
-                    "review_basis": "TASK_METADATA_AND_PRIVATE_EXPECTED_RESULT",
-                }
-            )
+    for item in queue.records:
+        review_kind = str(item["review_kind"])
+        left, right = str(item["left_task_id"]), str(item["right_task_id"])
+        decision = decisions.get((review_kind, left, right))
+        if not isinstance(decision, dict):
+            raise DedupReviewError(f"missing external decision for {review_kind}:{left}:{right}")
+        outcome = decision.get("outcome")
+        reason_code = decision.get("reason_code")
+        if outcome not in {"DUPLICATE", "DISTINCT"} or not isinstance(reason_code, str) or not reason_code:
+            raise DedupReviewError(f"invalid external decision for {review_kind}:{left}:{right}")
+        records.append(
+            {
+                **item,
+                "outcome": outcome,
+                "reason_code": reason_code,
+                "reviewer": reviewer,
+                "review_basis": "TASK_METADATA_AND_PRIVATE_EXPECTED_RESULT",
+            }
+        )
     reviewed_duplicates = sum(item["outcome"] == "DUPLICATE" for item in records)
     missed_duplicates = sum(
         item["review_kind"] == "MISS_PROBE" and item["outcome"] == "DUPLICATE"
@@ -139,7 +201,7 @@ def review_dedup_candidates(
     )
     review_sha256 = sha256_bytes(canonical_json_bytes(records))
     receipt = DedupReviewReceipt(
-        candidate_pairs_generated=len(candidates),
+        candidate_pairs_generated=queue.candidate_pairs_generated,
         reviewed_candidate_pairs=review_size,
         reviewed_probe_pairs=review_size,
         reviewed_duplicates=reviewed_duplicates,
@@ -147,6 +209,7 @@ def review_dedup_candidates(
         semantic_vector_review="NOT_REQUIRED_NO_OBSERVED_MISS"
         if missed_duplicates == 0
         else "REQUIRED_AFTER_OBSERVED_MISS",
+        review_queue_sha256=queue.queue_sha256,
         review_sha256=review_sha256,
     )
     output_dir.mkdir(parents=True, exist_ok=True)
