@@ -1,0 +1,19 @@
+facts:
+  - document_id: units-length
+    source_record_id: python-docs-3.12:units-length
+    source_group_id: python-docs-3.12-length
+    label: centimetres in one metre
+    value: 100
+    unit: cm
+  - document_id: time-minute
+    source_record_id: python-docs-3.12:time-minute
+    source_group_id: python-docs-3.12-time
+    label: seconds in one minute
+    value: 60
+    unit: s
+  - document_id: storage-kib
+    source_record_id: python-docs-3.12:storage-kib
+    source_group_id: python-docs-3.12-storage
+    label: bytes in one KiB
+    value: 1024
+    unit: B

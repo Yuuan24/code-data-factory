@@ -1,0 +1,15 @@
+{
+  "sources": [
+    {
+      "source_id": "toucan-1.5m",
+      "source_uri": "https://huggingface.co/datasets/Agent-Ark/Toucan-1.5M",
+      "revision": "0df3cf37f2abefb380370cfb02eabea2a35ae782",
+      "license": "Apache-2.0",
+      "usage_scope": "HISTORICAL_ONLY",
+      "source_kind": "tool-trajectory-history",
+      "local_path": "data/raw/toucan-1.5m/SFT/train-00000-of-00003.parquet",
+      "expected_sha256": "5657480020d6a16566363e74782f788ca0412c9c30d8858d33c84c3fee1a8dd4",
+      "required_tools": ["read_document", "calculate", "convert"]
+    }
+  ]
+}

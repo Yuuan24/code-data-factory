@@ -1,0 +1,7 @@
+policy_version: quality-v1
+dedup:
+  num_perm: 64
+  threshold: 0.8
+  seed: 7
+accepted_requires: VERIFIED_PASS
+unknown_action: QUARANTINE

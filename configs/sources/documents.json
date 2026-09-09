@@ -1,0 +1,13 @@
+{
+  "sources": [
+    {
+      "source_id": "python-docs-3.12",
+      "source_uri": "https://docs.python.org/3.12/",
+      "revision": "python-3.12",
+      "license": "PSF-2.0",
+      "usage_scope": "TRAIN",
+      "source_kind": "public-documentation",
+      "required_tools": ["search_documents", "read_document", "calculate", "convert"]
+    }
+  ]
+}

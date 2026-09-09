@@ -1,0 +1,23 @@
+stages:
+  build_us1_local:
+    cmd: >-
+      uv run --group data cdf data build
+      --input data/build-inputs/pilot.json
+      --backend local
+      --output-dir data/draft/local
+    deps:
+      - data/build-inputs/pilot.json
+      - configs/quality/build.yaml
+    outs:
+      - data/draft/local
+  build_us1_ray:
+    cmd: >-
+      uv run --group data cdf data build
+      --input data/build-inputs/pilot.json
+      --backend ray
+      --output-dir data/draft/ray
+    deps:
+      - data/build-inputs/pilot.json
+      - configs/quality/build.yaml
+    outs:
+      - data/draft/ray

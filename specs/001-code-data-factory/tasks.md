@@ -68,25 +68,25 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 
 ### Tests
 
-- [ ] T013 [P] [US1] 在 `tests/contract/test_source_import.py`、`tests/contract/test_sft_export.py` 验证原始/规范字段映射、歧义隔离、失败原池不变、必要上下文与模型输出控制词元损失标记。（依赖：T012）
-- [ ] T014 [P] [US1] 在 `tests/integration/test_dataset_governance.py` 验证同源/模板/重复组切分、桥接冲突、撤销影响、增量/全量一致及写入前后失败，手写预期输入独立于业务实现。（依赖：T012）
+- [X] T013 [P] [US1] 在 `tests/contract/test_source_import.py`、`tests/contract/test_sft_export.py` 验证原始/规范字段映射、歧义隔离、失败原池不变、必要上下文与模型输出控制词元损失标记。（依赖：T012）
+- [X] T014 [P] [US1] 在 `tests/integration/test_dataset_governance.py` 验证同源/模板/重复组切分、桥接冲突、撤销影响、增量/全量一致及写入前后失败，手写预期输入独立于业务实现。（依赖：T012）
 
 ### Implementation
 
-- [ ] T015 [US1] 在 `src/code_data_factory/sources/audit.py` 复用 `huggingface_hub`/PyArrow 读取固定来源，按 `configs/sources/toucan-sft.json`、`configs/sources/documents.json` 保存版本/许可/敏感检查、实际工具范围与依赖缺失报告。（依赖：T013）
-- [ ] T016 [US1] 在 `src/code_data_factory/sources/toucan.py` 实现历史序列安全解析和事件映射，保留 raw 引用与唯一推断关联来源；禁止执行输入表达式，缺环境记录仅进 HISTORICAL_ONLY。（依赖：T015）
-- [ ] T017 [US1] 在 `src/code_data_factory/tasks/build.py`、`configs/tasks/pilot.yaml` 构建三个任务族的 100 个独立先导任务草稿，固定资料/数值真值/工具/来源与模板根；每族至少 20 个，尚不标可执行；提供分组预分配接口，变体生成须读取登记簿。（依赖：T016）
-- [ ] T018 [US1] 在 `src/code_data_factory/processing/dedup.py` 复用 datasketch MinHash/局部敏感哈希实现候选适配及精确去重，保存投影、种子、阈值和代表选择证据，不按工具序列直接合并不同任务。（依赖：T014、T017）
-- [ ] T019 [US1] 在 `src/code_data_factory/processing/quality.py`、`configs/quality/build.yaml` 实现独立质量维度与决策账本，支持未知/拒绝/修复新记录及可靠错误片段标记；只消费验证记录，不自造成功标签。（依赖：T018）
-- [ ] T020 [US1] 在 `src/code_data_factory/tasks/splits.py` 实现来源—模板派生连通组与固定切分登记，粗任务族只分层；连接不同已冻集合的新对象须隔离并触发失效，训练前变体继承原归属。（依赖：T019）
-- [ ] T021 [US1] 在 `src/code_data_factory/datasets/quality_reports.sql` 使用 DuckDB 重算独立任务/轨迹数、质量、配比、拒绝、奖励缺失及单位产出成本；无产出成本为空，过程失败与终态分别计数。（依赖：T020）
-- [ ] T022 [US1] 在 `src/code_data_factory/processing/backends.py` 复用 Ray Data 提供本地/Ray 同算子读取、分组、转换与落地，事件按尝试和序号还原、大观察走引用、块按字节限额，禁止执行生成代码。（依赖：T021）
-- [ ] T023 [US1] 在 `src/code_data_factory/processing/commit.py` 实现输入/规则/登记簿驱动的增量分区与全局受影响簇重算，复用 DVC 缓存及 Ray 重试，记录恢复事件，清单提交幂等且无部分发布。（依赖：T022）
-- [ ] T024 [US1] 在 `dvc.yaml`、`src/code_data_factory/datasets/build_input.py` 连接原料/任务/实际尝试/验证/切分清单，落实 `data/build-inputs/pilot.json` 契约，不能只读历史原料丢掉实际执行结果。（依赖：T023）
-- [ ] T025 [US1] 在 `src/code_data_factory/datasets/publish.py` 定义数据版本/成员/决策关系并发布本地不可变数据卡、报告、谱系和哈希；用途与实际证据门禁不通过即阻断，夹具仅作软件测试。（依赖：T024）
-- [ ] T026 [US1] 在 `src/code_data_factory/datasets/export_sft.py`、`configs/experiments/export-sft.yaml` 复用冻结分词器/模板导出完整上下文、选定目标与逐词元映射；排除观察/输入包装损失、保留输出控制词元，过长或错误定位未知的样本拒绝。（依赖：T025）
-- [ ] T027 [US1] 在 `src/code_data_factory/sources/revoke.py` 实现来源撤销与数据/运行/结论的关系查询，删除分发内容或标记失效、只留必要非敏感审计；后续实验实体按同一引用协议加入索引。（依赖：T026）
-- [ ] T028 [US1] 在 `src/code_data_factory/cli.py` 接入 `source audit/revoke`、`task build`、`trajectory import`、`data build --resume`、`dataset publish/export-sft`，完成各命令 schema/失败码与产物契约检查。（依赖：T027）
+- [X] T015 [US1] 在 `src/code_data_factory/sources/audit.py` 复用 `huggingface_hub`/PyArrow 读取固定来源，按 `configs/sources/toucan-sft.json`、`configs/sources/documents.json` 保存版本/许可/敏感检查、实际工具范围与依赖缺失报告。（依赖：T013）
+- [X] T016 [US1] 在 `src/code_data_factory/sources/toucan.py` 实现历史序列安全解析和事件映射，保留 raw 引用与唯一推断关联来源；禁止执行输入表达式，缺环境记录仅进 HISTORICAL_ONLY。（依赖：T015）
+- [X] T017 [US1] 在 `src/code_data_factory/tasks/build.py`、`configs/tasks/pilot.yaml` 构建三个任务族的 100 个独立先导任务草稿，固定资料/数值真值/工具/来源与模板根；每族至少 20 个，尚不标可执行；提供分组预分配接口，变体生成须读取登记簿。（依赖：T016）
+- [X] T018 [US1] 在 `src/code_data_factory/processing/dedup.py` 复用 datasketch MinHash/局部敏感哈希实现候选适配及精确去重，保存投影、种子、阈值和代表选择证据，不按工具序列直接合并不同任务。（依赖：T014、T017）
+- [X] T019 [US1] 在 `src/code_data_factory/processing/quality.py`、`configs/quality/build.yaml` 实现独立质量维度与决策账本，支持未知/拒绝/修复新记录及可靠错误片段标记；只消费验证记录，不自造成功标签。（依赖：T018）
+- [X] T020 [US1] 在 `src/code_data_factory/tasks/splits.py` 实现来源—模板派生连通组与固定切分登记，粗任务族只分层；连接不同已冻集合的新对象须隔离并触发失效，训练前变体继承原归属。（依赖：T019）
+- [X] T021 [US1] 在 `src/code_data_factory/datasets/quality_reports.sql` 使用 DuckDB 重算独立任务/轨迹数、质量、配比、拒绝、奖励缺失及单位产出成本；无产出成本为空，过程失败与终态分别计数。（依赖：T020）
+- [X] T022 [US1] 在 `src/code_data_factory/processing/backends.py` 复用 Ray Data 提供本地/Ray 同算子读取、分组、转换与落地，事件按尝试和序号还原、大观察走引用、块按字节限额，禁止执行生成代码。（依赖：T021）
+- [X] T023 [US1] 在 `src/code_data_factory/processing/commit.py` 实现输入/规则/登记簿驱动的增量分区与全局受影响簇重算，复用 DVC 缓存及 Ray 重试，记录恢复事件，清单提交幂等且无部分发布。（依赖：T022）
+- [X] T024 [US1] 在 `dvc.yaml`、`src/code_data_factory/datasets/build_input.py` 连接原料/任务/实际尝试/验证/切分清单，落实 `data/build-inputs/pilot.json` 契约，不能只读历史原料丢掉实际执行结果。（依赖：T023）
+- [X] T025 [US1] 在 `src/code_data_factory/datasets/publish.py` 定义数据版本/成员/决策关系并发布本地不可变数据卡、报告、谱系和哈希；用途与实际证据门禁不通过即阻断，夹具仅作软件测试。（依赖：T024）
+- [X] T026 [US1] 在 `src/code_data_factory/datasets/export_sft.py`、`configs/experiments/export-sft.yaml` 复用冻结分词器/模板导出完整上下文、选定目标与逐词元映射；排除观察/输入包装损失、保留输出控制词元，过长或错误定位未知的样本拒绝。（依赖：T025）
+- [X] T027 [US1] 在 `src/code_data_factory/sources/revoke.py` 实现来源撤销与数据/运行/结论的关系查询，删除分发内容或标记失效、只留必要非敏感审计；后续实验实体按同一引用协议加入索引。（依赖：T026）
+- [X] T028 [US1] 在 `src/code_data_factory/cli.py` 接入 `source audit/revoke`、`task build`、`trajectory import`、`data build --resume`、`dataset publish/export-sft`，完成各命令 schema/失败码与产物契约检查。（依赖：T027）
 - [ ] T029 [US1] 执行固定来源审计、候选近重复至少 100 对人工抽审和漏检探针，保存 `artifacts/data-audit/source_report.json`、`artifacts/data-audit/dedup_review.parquet`；据结果冻结规则，不合格不扩量；语义向量复核仅在实测缺口成立时另记启用决定。（依赖：T028）
 - [ ] T030 [US1] 运行本地/Ray、全量/增量等价和提交前/后各一次故障恢复，保存 `artifacts/data-runs/equivalence/manifest.json`；用同一登记簿验证逻辑哈希/决策一致与无重复发布。（依赖：T029）
 - [ ] T031 [US1] 从规范导入/草稿重建一次版本并测试撤销传播、SFT 掩码和原始失败保留，保存 `artifacts/checkpoints/us1-software.json`，仅报告有实际证据的用途与数据数量。（依赖：T030）

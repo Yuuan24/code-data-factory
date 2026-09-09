@@ -11,6 +11,7 @@ __pycache__/
 # Local data, model and run facts are tracked through manifests/DVC, never Git.
 /data/raw/
 /data/normalized/
+/data/pilot/
 /data/releases/
 /data/exports/
 /artifacts/

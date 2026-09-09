@@ -1,0 +1,5 @@
+tokenizer_name: test-byte-tokenizer
+tokenizer_revision: v1
+template_version: tool-chat-v1
+max_context_tokens: 8192
+unknown_action: reject
