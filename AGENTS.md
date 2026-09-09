@@ -50,6 +50,25 @@ A user-story checkpoint is not complete until its acceptance evidence and local 
 present. The implementing agent must update an existing local `CH-###` entry, create a new one, or add an explicit
 no-new-issue checkpoint receipt with the reviewed task and artifact IDs.
 
+## Git Commit Identity Gate
+
+Every commit created, amended, merged, or rewritten for this repository, including commits made in a temporary
+clone or history-rewrite mirror, must use only this identity:
+
+```text
+Yuuan24 <48498800+Yuuan24@users.noreply.github.com>
+```
+
+Before the first commit in every worktree or temporary clone, explicitly set and verify the repository-local
+`user.name` and `user.email` to those exact values. Do not inherit a global Git identity. Company, personal, or
+otherwise unverified email addresses must not appear in author or committer metadata.
+
+Before every push, force-push, or history rewrite publication, inspect the actual candidate commit with
+`git show -s --format='%an <%ae>%n%cn <%ce>' <candidate-sha>` and verify that both author and committer exactly
+match the required identity. On any mismatch, stop before the remote update and recreate or repair the candidate
+locally; changing an already public commit still requires explicit authorization for the corresponding history
+rewrite.
+
 ## GitHub-to-OpenBayes Test Gate
 
 The repository default branch is `main`; treat it as the protected integration branch even when repository settings
