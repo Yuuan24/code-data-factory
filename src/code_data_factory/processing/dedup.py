@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes
 
@@ -21,6 +25,56 @@ class DedupResult:
     seed: int
     threshold: float
     num_perm: int
+
+
+def write_dedup_evidence(result: DedupResult, *, output_dir: Path) -> dict[str, Path]:
+    """Persist candidate, representative, projection, and rule evidence."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    candidates_path = output_dir / "dedup_candidates.parquet"
+    representatives_path = output_dir / "dedup_representatives.parquet"
+    manifest_path = output_dir / "dedup_manifest.json"
+    pq.write_table(
+        pa.Table.from_pylist(
+            [{"left_task_id": left, "right_task_id": right} for left, right in result.candidate_pairs],
+            schema=pa.schema([("left_task_id", pa.string()), ("right_task_id", pa.string())]),
+        ),
+        candidates_path,
+    )
+    pq.write_table(
+        pa.Table.from_pylist(
+            [
+                {
+                    "task_id": task_id,
+                    "representative_task_id": representative,
+                    "projection_sha256": result.projection_hashes[task_id],
+                }
+                for task_id, representative in sorted(result.representatives.items())
+            ],
+            schema=pa.schema(
+                [
+                    ("task_id", pa.string()),
+                    ("representative_task_id", pa.string()),
+                    ("projection_sha256", pa.string()),
+                ]
+            ),
+        ),
+        representatives_path,
+    )
+    manifest_path.write_bytes(
+        canonical_json_bytes(
+            {
+                "seed": result.seed,
+                "threshold": result.threshold,
+                "num_perm": result.num_perm,
+                "candidate_count": len(result.candidate_pairs),
+                "representative_count": len(set(result.representatives.values())),
+                "candidates_path": candidates_path.name,
+                "representatives_path": representatives_path.name,
+            }
+        )
+    )
+    return {"candidates": candidates_path, "representatives": representatives_path, "manifest": manifest_path}
 
 
 def _projection(task: dict[str, Any]) -> dict[str, Any]:

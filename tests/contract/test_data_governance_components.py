@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 from code_data_factory.contracts.tasks import AccessScope, ArtifactRef
 from code_data_factory.contracts.verification import Outcome, VerificationRecord, VerificationStatus
-from code_data_factory.processing.dedup import deduplicate_tasks
+from code_data_factory.processing.dedup import deduplicate_tasks, write_dedup_evidence
 from code_data_factory.processing.quality import decide_quality
 
 
@@ -20,7 +21,7 @@ def _ref(name: str) -> ArtifactRef:
     )
 
 
-def test_dedup_uses_semantic_projection_not_tool_sequence() -> None:
+def test_dedup_uses_semantic_projection_not_tool_sequence(tmp_path: Path) -> None:
     result = deduplicate_tasks(
         [
             {
@@ -52,6 +53,7 @@ def test_dedup_uses_semantic_projection_not_tool_sequence() -> None:
 
     assert result.representatives == {"same-a": "same-a", "same-b": "same-a", "different-value": "different-value"}
     assert ("same-a", "same-b") in result.candidate_pairs
+    assert all(path.is_file() for path in write_dedup_evidence(result, output_dir=tmp_path / "dedup").values())
 
 
 def test_quality_decisions_consume_verification_records_and_keep_unknown_out_of_accepted_pool() -> None:
