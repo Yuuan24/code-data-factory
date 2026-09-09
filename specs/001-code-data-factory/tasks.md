@@ -87,10 +87,10 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [X] T026 [US1] 在 `src/code_data_factory/datasets/export_sft.py`、`configs/experiments/export-sft.yaml` 复用冻结分词器/模板导出完整上下文、选定目标与逐词元映射；排除观察/输入包装损失、保留输出控制词元，过长或错误定位未知的样本拒绝。（依赖：T025）
 - [X] T027 [US1] 在 `src/code_data_factory/sources/revoke.py` 实现来源撤销与数据/运行/结论的关系查询，删除分发内容或标记失效、只留必要非敏感审计；后续实验实体按同一引用协议加入索引。（依赖：T026）
 - [X] T028 [US1] 在 `src/code_data_factory/cli.py` 接入 `source audit/revoke`、`task build`、`trajectory import`、`data build --resume`、`dataset publish/export-sft`，完成各命令 schema/失败码与产物契约检查。（依赖：T027）
-- [ ] T029 [US1] 执行固定来源审计、候选近重复至少 100 对人工抽审和漏检探针，保存 `artifacts/data-audit/source_report.json`、`artifacts/data-audit/dedup_review.parquet`；据结果冻结规则，不合格不扩量；语义向量复核仅在实测缺口成立时另记启用决定。（依赖：T028）
-- [ ] T030 [US1] 运行本地/Ray、全量/增量等价和提交前/后各一次故障恢复，保存 `artifacts/data-runs/equivalence/manifest.json`；用同一登记簿验证逻辑哈希/决策一致与无重复发布。（依赖：T029）
-- [ ] T031 [US1] 从规范导入/草稿重建一次版本并测试撤销传播、SFT 掩码和原始失败保留，保存 `artifacts/checkpoints/us1-software.json`，仅报告有实际证据的用途与数据数量。（依赖：T030）
-- [ ] T032 [US1] 在本机私有决策记录（不提交）中记录 US1 数据治理取舍、SC-001/004–007 的软件证据和剩余真实发布门禁，并把检查回执关联到 `artifacts/checkpoints/us1-software.json`。（依赖：T031）
+- [X] T029 [US1] 执行固定来源审计、候选近重复至少 100 对人工抽审和漏检探针，保存 `artifacts/data-audit/source_report.json`、`artifacts/data-audit/dedup_review.parquet`；据结果冻结规则，不合格不扩量；语义向量复核仅在实测缺口成立时另记启用决定。（依赖：T028）
+- [X] T030 [US1] 运行本地/Ray、全量/增量等价和提交前/后各一次故障恢复，保存 `artifacts/data-runs/equivalence/manifest.json`；用同一登记簿验证逻辑哈希/决策一致与无重复发布。（依赖：T029）
+- [X] T031 [US1] 从规范导入/草稿重建一次版本并测试撤销传播、SFT 掩码和原始失败保留，保存 `artifacts/checkpoints/us1-software.json`，仅报告有实际证据的用途与数据数量。（依赖：T030）
+- [X] T032 [US1] 在本机私有决策记录（不提交）中记录 US1 数据治理取舍、SC-001/004–007 的软件证据和剩余真实发布门禁，并把检查回执关联到 `artifacts/checkpoints/us1-software.json`。（依赖：T031）
 
 **Checkpoint**: US1 软件治理可独立演示；正式合格池与实际质量指标由 T047 回验，不得冒充已执行验证。
 
