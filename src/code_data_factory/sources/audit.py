@@ -5,8 +5,10 @@ from __future__ import annotations
 import importlib.util
 import json
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.request import Request, urlopen
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -38,6 +40,63 @@ class AuditedSource:
 class SourceAuditReport:
     manifest_sha256: str
     sources: list[AuditedSource]
+
+
+def freeze_document_sources(manifest_path: Path, *, output_dir: Path) -> Path:
+    """Fetch declared public documents into a content-addressed local snapshot.
+
+    The caller explicitly chooses the output directory; this prevents an audit
+    from silently turning a mutable remote URL into a presumed frozen source.
+    """
+
+    manifest = _load(manifest_path)
+    snapshots: list[dict[str, Any]] = []
+    for source in manifest["sources"]:
+        if not isinstance(source, dict) or source.get("source_kind") != "public-documentation":
+            continue
+        source_id = source.get("source_id")
+        source_uri = source.get("source_uri")
+        if not isinstance(source_id, str) or not isinstance(source_uri, str):
+            raise ValueError("public documentation source needs source_id and source_uri")
+        request = Request(source_uri, headers={"User-Agent": "code-data-factory-source-freezer/1"})
+        try:
+            with urlopen(request, timeout=30) as response:  # noqa: S310 - URL is declared project input
+                payload = response.read()
+                media_type = response.headers.get_content_type() or "application/octet-stream"
+        except OSError as error:
+            raise ValueError(f"failed to freeze {source_id}: {type(error).__name__}: {error}") from error
+        digest = sha256_bytes(payload)
+        expected_hash = source.get("expected_sha256")
+        if expected_hash is not None and expected_hash != digest:
+            raise ValueError(f"frozen source digest mismatch: {source_id}")
+        extension = ".html" if media_type == "text/html" else ".bin"
+        relative = Path(source_id) / f"{digest}{extension}"
+        destination = output_dir / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if destination.exists() and destination.read_bytes() != payload:
+            raise ValueError(f"content-addressed source collision for {source_id}")
+        destination.write_bytes(payload)
+        snapshots.append(
+            {
+                "source_id": source_id,
+                "source_uri": source_uri,
+                "upstream_revision": source.get("revision"),
+                "license": source.get("license"),
+                "usage_scope": source.get("usage_scope"),
+                "source_kind": source.get("source_kind"),
+                "captured_at": datetime.now(UTC).isoformat(),
+                "content_sha256": digest,
+                "content_hash_status": "MATCHED" if expected_hash else "UNDECLARED",
+                "byte_size": len(payload),
+                "media_type": media_type,
+                "path": relative.as_posix(),
+            }
+        )
+    if not snapshots:
+        raise ValueError("source manifest contains no public documentation sources")
+    frozen_manifest = output_dir / "source_manifest.json"
+    frozen_manifest.write_bytes(canonical_json_bytes({"sources": snapshots}))
+    return frozen_manifest
 
 
 def _load(path: Path) -> dict[str, Any]:

@@ -17,7 +17,7 @@ from code_data_factory.datasets.build import build_draft
 from code_data_factory.datasets.build_input import BuildInputError, load_build_input
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
-from code_data_factory.sources.audit import audit_sources
+from code_data_factory.sources.audit import audit_sources, freeze_document_sources
 from code_data_factory.sources.revoke import revoke_source
 from code_data_factory.sources.toucan import import_toucan_records, write_import_result
 from code_data_factory.tasks.build import build_pilot_tasks
@@ -93,6 +93,11 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
             raise ValueError("source audit requires --manifest")
         report = audit_sources(parsed.manifest, output_dir=output, fetch_remote=True)
         return _completed(command, run_id, [output / "source_report.json"], {"sources": len(report.sources)})
+    if parsed.command == ["source", "freeze"]:
+        if parsed.manifest is None:
+            raise ValueError("source freeze requires --manifest")
+        frozen_manifest = freeze_document_sources(parsed.manifest, output_dir=output)
+        return _completed(command, run_id, [frozen_manifest], {"sources": len(json.loads(frozen_manifest.read_text(encoding="utf-8"))["sources"])})
     if parsed.command == ["source", "revoke"]:
         if not parsed.source_record_id:
             raise ValueError("source revoke requires --source-record-id")
