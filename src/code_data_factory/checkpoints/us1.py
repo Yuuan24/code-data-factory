@@ -89,7 +89,12 @@ def run_us1_software_checkpoint(
     dedup_evidence = _required_object(
         dedup_review_summary,
         label="dedup review summary",
-        required_keys={"reviewed_candidate_pairs", "reviewed_probe_pairs", "review_sha256"},
+        required_keys={
+            "reviewed_candidate_pairs",
+            "reviewed_probe_pairs",
+            "review_queue_sha256",
+            "review_sha256",
+        },
     )
     equivalence_evidence = _required_object(
         equivalence_manifest,
@@ -100,6 +105,8 @@ def run_us1_software_checkpoint(
         raise ValueError("US1 checkpoint source report has no audited sources")
     if dedup_evidence["reviewed_candidate_pairs"] < 100 or dedup_evidence["reviewed_probe_pairs"] < 100:
         raise ValueError("US1 checkpoint requires one hundred candidate and probe reviews")
+    if not isinstance(dedup_evidence["review_queue_sha256"], str) or not dedup_evidence["review_queue_sha256"]:
+        raise ValueError("US1 checkpoint requires a bound dedup review queue")
     if equivalence_evidence["local_hash"] != equivalence_evidence["ray_hash"] or equivalence_evidence["full_hash"] != equivalence_evidence["incremental_hash"]:
         raise ValueError("US1 checkpoint equivalence hashes disagree")
     with TemporaryDirectory(prefix="cdf-us1-checkpoint-") as temporary:

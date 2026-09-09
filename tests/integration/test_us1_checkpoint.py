@@ -14,7 +14,7 @@ def test_us1_checkpoint_rebuilds_fixture_boundaries_and_writes_receipt(tmp_path:
     equivalence = tmp_path / "equivalence.json"
     source.write_text('{"sources":[{"source_id":"fixture"}]}', encoding="utf-8")
     dedup.write_text(
-        '{"reviewed_candidate_pairs":100,"reviewed_probe_pairs":100,"review_sha256":"a"}',
+        '{"reviewed_candidate_pairs":100,"reviewed_probe_pairs":100,"review_queue_sha256":"queue","review_sha256":"a"}',
         encoding="utf-8",
     )
     equivalence.write_text(
@@ -42,6 +42,30 @@ def test_us1_checkpoint_rejects_empty_evidence_placeholders(tmp_path: Path) -> N
     equivalence = tmp_path / "equivalence.json"
     for path in (source, dedup, equivalence):
         path.write_text("{}", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="lacks required evidence fields"):
+        run_us1_software_checkpoint(
+            output_path=tmp_path / "us1-software.json",
+            source_report=source,
+            dedup_review_summary=dedup,
+            equivalence_manifest=equivalence,
+            task_config=Path("configs/tasks/pilot.yaml"),
+        )
+
+
+def test_us1_checkpoint_rejects_a_review_summary_without_a_bound_queue(tmp_path: Path) -> None:
+    source = tmp_path / "source_report.json"
+    dedup = tmp_path / "dedup_review_summary.json"
+    equivalence = tmp_path / "equivalence.json"
+    source.write_text('{"sources":[{"source_id":"fixture"}]}', encoding="utf-8")
+    dedup.write_text(
+        '{"reviewed_candidate_pairs":100,"reviewed_probe_pairs":100,"review_sha256":"legacy"}',
+        encoding="utf-8",
+    )
+    equivalence.write_text(
+        '{"local_hash":"same","ray_hash":"same","full_hash":"same","incremental_hash":"same","precommit_recovery":"RECOVERED","postcommit_recovery":"RECOVERED"}',
+        encoding="utf-8",
+    )
 
     with pytest.raises(ValueError, match="lacks required evidence fields"):
         run_us1_software_checkpoint(
