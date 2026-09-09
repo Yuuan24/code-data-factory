@@ -6,7 +6,11 @@ from pathlib import Path
 from code_data_factory.contracts.tasks import AccessScope, ArtifactRef
 from code_data_factory.contracts.verification import Outcome, VerificationRecord, VerificationStatus
 from code_data_factory.processing.dedup import deduplicate_tasks, write_dedup_evidence
-from code_data_factory.processing.quality import decide_quality
+from code_data_factory.processing.quality import (
+    decide_quality,
+    repair_decision,
+    write_quality_ledger,
+)
 
 
 def _ref(name: str) -> ArtifactRef:
@@ -56,7 +60,9 @@ def test_dedup_uses_semantic_projection_not_tool_sequence(tmp_path: Path) -> Non
     assert all(path.is_file() for path in write_dedup_evidence(result, output_dir=tmp_path / "dedup").values())
 
 
-def test_quality_decisions_consume_verification_records_and_keep_unknown_out_of_accepted_pool() -> None:
+def test_quality_decisions_consume_verification_records_and_keep_unknown_out_of_accepted_pool(
+    tmp_path: Path,
+) -> None:
     now = datetime.now(UTC)
     verified = VerificationRecord(
         verification_id="verify-pass",
@@ -89,3 +95,10 @@ def test_quality_decisions_consume_verification_records_and_keep_unknown_out_of_
     assert result.accepted_attempt_ids == ["attempt-pass"]
     assert result.quarantined_attempt_ids == ["attempt-unknown"]
     assert result.decisions[1].reason_codes == ("VERIFICATION_UNKNOWN",)
+    ledger = write_quality_ledger(result.decisions, output_dir=tmp_path)
+    repaired = repair_decision(
+        old_decision=result.decisions[1], replacement_subject_id="attempt-repaired", policy_version="quality-v1"
+    )
+    assert ledger.is_file()
+    assert repaired.action == "REPAIR"
+    assert repaired.parent_decision_id == result.decisions[1].decision_id
