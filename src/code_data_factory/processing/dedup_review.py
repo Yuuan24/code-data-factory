@@ -70,15 +70,19 @@ def review_dedup_candidates(
     expected_results: dict[str, dict[str, Any]],
     output_dir: Path,
     reviewer: str,
+    decisions: dict[tuple[str, str, str], dict[str, str]],
     seed: int,
     num_perm: int,
     threshold: float,
     review_size: int = 100,
 ) -> DedupReviewReceipt:
-    """Save 100 candidate reviews and an equal-sized deterministic miss probe.
+    """Persist externally supplied review decisions for fixed candidate pairs.
 
     The review basis is bounded task metadata plus private expected numeric results;
     no source prompt, tool argument, observation, or historical raw record is copied.
+    This function deliberately never derives ``outcome`` from task fields: a
+    caller must supply every human/independent-review decision for the fixed
+    sample or the audit fails closed.
     """
 
     rows, semantic_keys = _review_tasks(tasks, expected_results)
@@ -103,7 +107,13 @@ def review_dedup_candidates(
     records: list[dict[str, Any]] = []
     for review_kind, pairs in (("CANDIDATE", candidates[:review_size]), ("MISS_PROBE", probe_pairs)):
         for left, right in pairs:
-            duplicate = semantic_keys[left] == semantic_keys[right]
+            decision = decisions.get((review_kind, left, right))
+            if not isinstance(decision, dict):
+                raise DedupReviewError(f"missing external decision for {review_kind}:{left}:{right}")
+            outcome = decision.get("outcome")
+            reason_code = decision.get("reason_code")
+            if outcome not in {"DUPLICATE", "DISTINCT"} or not isinstance(reason_code, str) or not reason_code:
+                raise DedupReviewError(f"invalid external decision for {review_kind}:{left}:{right}")
             left_key, right_key = semantic_keys[left], semantic_keys[right]
             records.append(
                 {
@@ -116,8 +126,8 @@ def review_dedup_candidates(
                     "right_input_value": right_key[2],
                     "left_expected_value": left_key[3],
                     "right_expected_value": right_key[3],
-                    "outcome": "DUPLICATE" if duplicate else "DISTINCT",
-                    "reason_code": "SAME_TASK_SEMANTICS" if duplicate else "DIFFERENT_FIXED_INPUT_OR_RESULT",
+                    "outcome": outcome,
+                    "reason_code": reason_code,
                     "reviewer": reviewer,
                     "review_basis": "TASK_METADATA_AND_PRIVATE_EXPECTED_RESULT",
                 }
