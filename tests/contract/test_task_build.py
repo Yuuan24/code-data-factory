@@ -26,5 +26,11 @@ def test_task_builder_creates_one_hundred_non_executable_drafts_with_preassigned
     assert all(task.status.value == "DRAFT" for task in result.tasks)
     assert all(task.initial_state_ref is None for task in result.tasks)
     assert all(task.split_group_id for task in result.tasks)
+    assert len({item["value"] for item in result.expected_results.values()}) == 100
+    assert all(
+        len(task.source_record_ids) == 2
+        for task in result.tasks
+        if task.task_family == "cross_document_comparison"
+    )
     assert (tmp_path / "task_manifest.json").is_file()
     assert (tmp_path / "private_expected_results.json").is_file()

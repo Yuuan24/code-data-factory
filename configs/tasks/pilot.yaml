@@ -5,15 +5,24 @@ facts:
     label: centimetres in one metre
     value: 100
     unit: cm
+    companion_document_id: constants-zero-cm
+    companion_source_record_id: python-docs-3.12:constants-zero-cm
+    companion_source_group_id: python-docs-3.12-zero-cm
   - document_id: time-minute
     source_record_id: python-docs-3.12:time-minute
     source_group_id: python-docs-3.12-time
     label: seconds in one minute
     value: 60
     unit: s
+    companion_document_id: constants-zero-s
+    companion_source_record_id: python-docs-3.12:constants-zero-s
+    companion_source_group_id: python-docs-3.12-zero-s
   - document_id: storage-kib
     source_record_id: python-docs-3.12:storage-kib
     source_group_id: python-docs-3.12-storage
     label: bytes in one KiB
     value: 1024
     unit: B
+    companion_document_id: constants-zero-b
+    companion_source_record_id: python-docs-3.12:constants-zero-b
+    companion_source_group_id: python-docs-3.12-zero-b

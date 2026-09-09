@@ -67,10 +67,13 @@ def build_pilot_tasks(
             fact = facts[index % len(facts)]
             task_id = f"pilot-{index + 1:03d}"
             template_root = f"{family}-template-{occurrence % 5}"
+            source_groups = [str(fact["source_group_id"])]
+            if family == "cross_document_comparison":
+                source_groups.append(str(fact["companion_source_group_id"]))
             preassign_input.append(
                 {
                     "task_id": task_id,
-                    "source_groups": [str(fact["source_group_id"])],
+                    "source_groups": source_groups,
                     "template_root": template_root,
                     "related_task_ids": [],
                 }
@@ -83,31 +86,50 @@ def build_pilot_tasks(
     expected: dict[str, dict[str, Any]] = {}
     for task_id, index, fact in specs:
         family = str(fact["family"])
+        input_value = index + 1
+        expected_value = int(fact["value"]) * input_value
         tools = {
-            "lookup": ["search_documents", "read_document"],
+            "lookup": ["search_documents", "read_document", "calculate"],
             "calculation_conversion": ["read_document", "calculate", "convert"],
             "cross_document_comparison": ["search_documents", "read_document", "calculate"],
         }[family]
         instruction = {
-            "lookup": f"Read {fact['document_id']} and report {fact['label']}.",
-            "calculation_conversion": f"Read {fact['document_id']}, then convert {fact['value']} {fact['unit']}.",
-            "cross_document_comparison": f"Compare {fact['document_id']} with the cited companion fact and calculate the difference.",
+            "lookup": (
+                f"Read {fact['document_id']} and calculate {input_value} times "
+                f"{fact['label']}."
+            ),
+            "calculation_conversion": (
+                f"Read {fact['document_id']}, then convert {input_value} declared "
+                f"base quantities into {fact['unit']}."
+            ),
+            "cross_document_comparison": (
+                f"Read {fact['document_id']} and {fact['companion_document_id']}, then "
+                f"calculate the difference between {input_value} times {fact['label']} "
+                "and the companion's zero value."
+            ),
         }[family]
+        source_record_ids = [str(fact["source_record_id"])]
+        source_group_ids = [str(fact["source_group_id"])]
+        document_ids = [str(fact["document_id"])]
+        if family == "cross_document_comparison":
+            source_record_ids.append(str(fact["companion_source_record_id"]))
+            source_group_ids.append(str(fact["companion_source_group_id"]))
+            document_ids.append(str(fact["companion_document_id"]))
         assignment = assignments[task_id]
         task = TaskPackage(
             task_id=task_id,
             task_revision="pilot-v1",
-            source_record_ids=[str(fact["source_record_id"])],
+            source_record_ids=source_record_ids,
             instruction_ref=_ref(f"{task_id}-instruction", {"instruction": instruction}, AccessScope.MODEL_VISIBLE, producer_run_id),
-            initial_resources_ref=_ref(f"{task_id}-resources", {"document_id": fact["document_id"]}, AccessScope.MODEL_VISIBLE, producer_run_id),
+            initial_resources_ref=_ref(f"{task_id}-resources", {"document_ids": document_ids}, AccessScope.MODEL_VISIBLE, producer_run_id),
             tool_bundle_ref=_ref(f"{task_id}-tools", {"tools": tools}, AccessScope.MODEL_VISIBLE, producer_run_id),
             environment_ref=_ref(f"{task_id}-environment", {"status": "not_executed"}, AccessScope.INTERNAL, producer_run_id),
             verifier_spec_ref=_ref(f"{task_id}-verifier", {"kind": "fixed_value"}, AccessScope.VERIFIER_PRIVATE, producer_run_id),
-            expected_result_ref=_ref(f"{task_id}-expected", {"value": fact["value"], "unit": fact["unit"]}, AccessScope.VERIFIER_PRIVATE, producer_run_id),
+            expected_result_ref=_ref(f"{task_id}-expected", {"value": expected_value, "unit": fact["unit"]}, AccessScope.VERIFIER_PRIVATE, producer_run_id),
             task_family=family,
             template_family_id=str(fact["template_root"]),
-            source_group_ids=[str(fact["source_group_id"])],
-            derivation_root_ids=[f"{fact['document_id']}:{index % 7}"],
+            source_group_ids=source_group_ids,
+            derivation_root_ids=[f"{fact['document_id']}:{input_value}"],
             usage_scope=UsageScope(assignment.scope),
             split_group_id=assignment.split_group_id,
             split_policy_version=split_registry.policy_version,
@@ -118,7 +140,12 @@ def build_pilot_tasks(
             status=TaskStatus.DRAFT,
         )
         tasks.append(task)
-        expected[task_id] = {"value": fact["value"], "unit": fact["unit"], "family": family}
+        expected[task_id] = {
+            "value": expected_value,
+            "unit": fact["unit"],
+            "family": family,
+            "input_value": input_value,
+        }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "task_manifest.json").write_bytes(
         canonical_json_bytes({"tasks": [task.model_dump(mode="json") for task in tasks]})

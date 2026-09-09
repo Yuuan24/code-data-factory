@@ -18,6 +18,7 @@ class EquivalenceReceipt:
     full_hash: str
     incremental_hash: str
     precommit_recovery: str
+    postcommit_recovery: str
     postcommit_retry: str
 
 
@@ -46,11 +47,31 @@ def run_equivalence(rows: list[dict[str, Any]], *, output_dir: Path) -> Equivale
     else:
         raise RuntimeError("precommit injection did not fail")
     recovered = commit_build(rows, destination=output_dir / "precommit", run_id="recovered", fail_at=None)
+    try:
+        commit_build(rows, destination=output_dir / "postcommit", run_id="retry", fail_at="postcommit")
+    except CommitError:
+        postcommit_recovery = "REJECTED_THEN_RECOVERED"
+    else:
+        raise RuntimeError("postcommit injection did not fail")
     retry = commit_build(rows, destination=output_dir / "postcommit", run_id="retry", fail_at=None)
-    retry = commit_build(rows, destination=output_dir / "postcommit", run_id="retry", previous=retry, fail_at=None)
+    retry = commit_build(
+        rows,
+        destination=output_dir / "postcommit",
+        run_id="retry",
+        previous=retry,
+        fail_at=None,
+    )
     if recovered.logical_content_hash != full.logical_content_hash or retry.logical_content_hash != full.logical_content_hash:
         raise RuntimeError("recovery changed logical content")
-    receipt = EquivalenceReceipt(local_hash, ray_hash, full.logical_content_hash, incremental.logical_content_hash, precommit_recovery, "IDEMPOTENT")
+    receipt = EquivalenceReceipt(
+        local_hash,
+        ray_hash,
+        full.logical_content_hash,
+        incremental.logical_content_hash,
+        precommit_recovery,
+        postcommit_recovery,
+        "IDEMPOTENT",
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "manifest.json").write_bytes(canonical_json_bytes(asdict(receipt)))
     return receipt

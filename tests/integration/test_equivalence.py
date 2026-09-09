@@ -17,5 +17,6 @@ def test_equivalence_receipt_covers_backends_incremental_and_recovery(tmp_path: 
     assert receipt.local_hash == receipt.ray_hash
     assert receipt.full_hash == receipt.incremental_hash
     assert receipt.precommit_recovery == "REJECTED_THEN_RECOVERED"
+    assert receipt.postcommit_recovery == "REJECTED_THEN_RECOVERED"
     assert receipt.postcommit_retry == "IDEMPOTENT"
     assert (tmp_path / "equivalence" / "manifest.json").is_file()
