@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 import pytest
 
 from code_data_factory.cli import EXIT_GATE_FAILED, main
+from code_data_factory.interaction import environment, network_guard
 from code_data_factory.interaction.budgets import BudgetExceeded, ExecutionBudget
 from code_data_factory.interaction.events import EventLedger
 from code_data_factory.interaction.tools import RestrictedTools, ToolInputError
@@ -101,6 +102,29 @@ def test_terminal_rewards_keep_unknown_null_and_never_overwrite_verification() -
 
 def test_environment_check_uses_the_command_envelope_and_fails_closed(tmp_path: object, capsys: object) -> None:
     config = tmp_path / "environment.yaml"  # type: ignore[operator]
-    config.write_text("container_runtime: absent-runtime\nnetwork_default: disabled\nread_only_root: true\nprivileged: false\nlimits: {}\n")
+    config.write_text("container_runtime: platform\nsource_root: .\nnetwork_default: disabled\nlimits: {}\n")
     assert main(["--json", "--config", str(config), "--output-dir", str(tmp_path / "result"), "environment", "check"]) == EXIT_GATE_FAILED  # type: ignore[operator]
     assert '"status": "GATE_FAILED"' in capsys.readouterr().out  # type: ignore[attr-defined]
+
+
+def test_platform_container_preflight_requires_actual_limits_and_read_only_source(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    config = tmp_path / "environment.yaml"  # type: ignore[operator]
+    config.write_text(
+        "container_runtime: platform\nsource_root: .\nnetwork_default: disabled\nlimits:\n  cpu_seconds: 120\n  memory_mib: 1024\n  pids: 64\n"
+    )
+    monkeypatch.setattr(environment.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(environment.os, "geteuid", lambda: 1000)
+    monkeypatch.setattr(environment, "_platform_container", lambda: True)
+    monkeypatch.setattr(environment, "_source_is_read_only", lambda _: True)
+    monkeypatch.setattr(environment, "_network_syscalls_blocked", lambda: True)
+    monkeypatch.setattr(environment, "_actual_limits", lambda: {"cpu_seconds": 120, "memory_mib": 1024, "pids": 64})
+    assert environment.check_environment(config).status == "PASSED"  # type: ignore[arg-type]
+
+
+def test_network_guard_installs_before_executing_the_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[object] = []
+    monkeypatch.setattr(network_guard, "install", lambda: calls.append("guard"))
+    monkeypatch.setattr(network_guard.os, "execv", lambda path, args: calls.append((path, args)))
+    network_guard.main(["--", "--json", "environment", "check"])
+    assert calls[0] == "guard"
+    assert calls[1] == (network_guard.sys.executable, [network_guard.sys.executable, "-m", "code_data_factory.cli", "--json", "environment", "check"])

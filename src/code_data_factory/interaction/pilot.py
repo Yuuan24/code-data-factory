@@ -130,7 +130,7 @@ def execute_fixed_actions(
 ) -> dict[str, object]:
     """Execute each supplied task twice only after an already-passed environment preflight."""
     if preflight.status != "PASSED":
-        raise PilotExecutionError("fixed actions require a passed Linux container preflight")
+        raise PilotExecutionError("fixed actions require a passed Linux platform-container preflight")
     if not tasks:
         raise PilotExecutionError("fixed actions require at least one task")
     task_ids = [task.task_id for task in tasks]

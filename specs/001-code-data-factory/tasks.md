@@ -107,7 +107,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 ### Implementation
 
 - [X] T035 [US2] 在 `src/code_data_factory/interaction/tools.py` 复用 DuckDB 全文检索、decimal、zoneinfo 与 Pint 包装四个受限工具，冻结单位/时区/资料版本；运算枚举与数值入参，不引入任意代码解释器。（依赖：T017、T034）
-- [X] T036 [US2] 在 `src/code_data_factory/interaction/environment.py`、`configs/execution/local-tools.yaml` 实现独立会话与 Linux 非特权只读容器/资源/默认断网检查，模型在外部受控调用；不写沙箱内核，环境不合格不能晋级。（依赖：T035）
+- [X] T036 [US2] 在 `src/code_data_factory/interaction/environment.py`、`configs/execution/local-tools.yaml` 实现独立会话与平台提供的 Linux 非特权只读容器/资源/默认断网检查，模型在外部受控调用；不写沙箱内核，环境不合格不能晋级。（依赖：T035）
 - [X] T037 [US2] 在 `src/code_data_factory/interaction/smolagents_adapter.py` 使用 ToolCallingAgent 和步骤回调，包装实际模型请求/原始输出，关闭隐式规划及无关工具，绑定独立会话而非重写 Agent 循环。（依赖：T036）
 - [X] T038 [US2] 在 `src/code_data_factory/interaction/budgets.py`、`configs/execution/collect.yaml` 实现调用前预算守卫，覆盖批量工具/辅助终答；初始限制按 plan 的 8 次、4096/8192 词元、8192/65536 字节和 120 秒，超限明确记录。（依赖：T037）
 - [X] T039 [US2] 在 `src/code_data_factory/interaction/events.py` 实现实际请求/输出/调用/返回的事件落地、完整与不完整尾部封存、取消/中断/环境故障，重试只限安全动作且不复用整任务身份。（依赖：T038）

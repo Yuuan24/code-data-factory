@@ -1,7 +1,6 @@
-container_runtime: podman
+container_runtime: platform
+source_root: ../..
 network_default: disabled
-read_only_root: true
-privileged: false
 limits:
   cpu_seconds: 120
   memory_mib: 1024

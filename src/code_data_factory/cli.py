@@ -149,7 +149,7 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
                 "UNVERIFIED",
                 [str(preflight_path)],
                 {},
-                ["Linux non-root restricted container preflight did not pass"],
+                ["Linux non-root platform-container preflight did not pass"],
                 [],
             )
         return _completed(command, run_id, [preflight_path], {"checks": len(preflight.findings)})
@@ -177,7 +177,7 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
                 "UNVERIFIED",
                 [],
                 {},
-                ["fixed-action collection requires a passed Linux container preflight"],
+                ["fixed-action collection requires a passed Linux platform-container preflight"],
                 [],
             )
         config = yaml.safe_load(parsed.config.read_text(encoding="utf-8"))
