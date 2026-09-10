@@ -67,6 +67,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--config", type=Path)
+    parser.add_argument("--execution-config", type=Path)
     parser.add_argument("--source", type=Path)
     parser.add_argument("--adapter")
     parser.add_argument("--input", type=Path)
@@ -168,7 +169,7 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
     if parsed.command == ["trajectory", "collect"]:
         if parsed.tasks is None or parsed.config is None:
             raise ValueError("trajectory collect requires --tasks and --config")
-        preflight = check_environment(parsed.config)
+        preflight = check_environment(parsed.execution_config or parsed.config)
         if preflight.status != "PASSED":
             return CommandEnvelope(
                 command,

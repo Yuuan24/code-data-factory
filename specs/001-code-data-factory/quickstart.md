@@ -51,7 +51,7 @@ uv run cdf environment check --config configs/execution/local-tools.yaml --outpu
 
 ```bash
 uv run cdf trajectory import --source configs/sources/toucan-sft.json --adapter toucan --output-dir data/imported --json
-uv run cdf trajectory collect --tasks data/pilot/task_manifest.json --config configs/execution/collect.yaml --output-dir artifacts/interactions/pilot --json
+uv run cdf trajectory collect --tasks data/pilot/task_manifest.json --config configs/execution/collect.yaml --execution-config configs/execution/local-tools.yaml --output-dir artifacts/interactions/pilot --json
 uv run cdf verify run --attempts artifacts/interactions/pilot/manifest.json --config configs/quality/verifier.yaml --output-dir artifacts/verifications/pilot --json
 ```
 

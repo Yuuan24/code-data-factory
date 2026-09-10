@@ -23,7 +23,7 @@ artifact_refs, counts, warnings, errors`。日志走标准错误，结构化结�
 | `cdf source audit --manifest <path>` | 来源、许可、字段、记录数、可执行依赖、拒绝原因 | 治理不通过不能进入正式池 |
 | `cdf task build --config <path>` | 独立任务、初始资源、真值、来源/模板组和切分登记 | 先分组再生成变体；缺初始条件不能标可执行 |
 | `cdf trajectory import --source <path> --adapter <name>` | 原始到规范事件映射、歧义隔离 | 历史身份不能变成当前策略采样 |
-| `cdf trajectory collect --tasks <manifest> --config <path>` | 调用 smolagents、完整实际尝试、费用 | 运行前环境/预算门禁；隐藏参考不对模型可见 |
+| `cdf trajectory collect --tasks <manifest> --config <collection-config> --execution-config <path>` | 调用 smolagents、完整实际尝试、费用 | 运行前环境/预算门禁；隐藏参考不对模型可见 |
 | `cdf data build --input <manifest> --config <path> --backend local\|ray` | 校验、去重、切分、质量/覆盖、增量草稿 | 同一冻结语义；每次拒绝/修复有证据 |
 | `cdf data build --input <manifest> --config <path> --backend ray --resume <run-id>` | 按已提交输入/分区恢复 | 不重复发布，不把恢复运行当原运行从未失败 |
 | `cdf dataset publish --draft <path>` | 不可变成员、质量/成本/数据卡与双向谱系 | 合格来源、切分、数据及哈希完整 |

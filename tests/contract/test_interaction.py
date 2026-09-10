@@ -128,3 +128,17 @@ def test_network_guard_installs_before_executing_the_cli(monkeypatch: pytest.Mon
     network_guard.main(["--", "--json", "environment", "check"])
     assert calls[0] == "guard"
     assert calls[1] == (network_guard.sys.executable, [network_guard.sys.executable, "-m", "code_data_factory.cli", "--json", "environment", "check"])
+
+
+def test_collect_uses_a_separate_execution_config(tmp_path: object, monkeypatch: pytest.MonkeyPatch) -> None:
+    collection = tmp_path / "collect.yaml"  # type: ignore[operator]
+    execution = tmp_path / "execution.yaml"  # type: ignore[operator]
+    collection.write_text("facts_config: facts.yaml\n")
+    execution.write_text("container_runtime: platform\n")
+    observed: list[object] = []
+    monkeypatch.setattr("code_data_factory.cli.check_environment", lambda path: observed.append(path) or environment.EnvironmentPreflight("FAILED", {}))
+    assert main([
+        "--config", str(collection), "--execution-config", str(execution), "--tasks", str(tmp_path / "tasks.json"),
+        "--output-dir", str(tmp_path / "output"), "trajectory", "collect",
+    ]) == EXIT_GATE_FAILED  # type: ignore[operator]
+    assert observed == [execution]  # type: ignore[arg-type]
