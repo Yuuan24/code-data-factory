@@ -1,20 +1,24 @@
 ---
-description: "Dependency-ordered implementation tasks for Agent trajectory data engineering, specification 2.0"
+description: "Dependency-ordered implementation tasks for Agent trajectory data engineering, specification 2.1"
 ---
 
 # Tasks: Agent 工具调用轨迹数据工厂
 
-**Revision**: 2.0 | **Created**: 2026-09-08 | **Status**: Ready for implementation；全部任务尚未执行。
+**Revision**: 2.1 | **Created**: 2026-09-08 | **Revised**: 2026-09-10 | **Status**: 44 项保留原验收；64 项未完成，含新增的 6 项来源/准入迁移任务。
 **Input**: [spec.md](spec.md)、[plan.md](plan.md)、[research.md](research.md)、
-[data-model.md](data-model.md)、[contracts/](contracts/)、[quickstart.md](quickstart.md)，均为规格 2.0。
+[data-model.md](data-model.md)、[contracts/](contracts/)、[quickstart.md](quickstart.md)。spec/plan/tasks 为 2.1；其他文档中冲突的来源/准入约定待 T103 同步，以 plan 的 2.1 迁移节为准。
 **Prerequisites**: 阅读项目宪章 3.0.2、上述设计、任务所属契约，以及可用时的本机私有决策记录（不提交）。
-本文件替换旧代码任务清单，旧版本任务编号不可当作本版完成证据；历史日志中的编号按当时版本解释。
+本次保留 T001–T044 的已完成状态及原任务正文，不用新需求改写其历史证据。T045–T047 尚未执行，
+现改为外部示范试点/批量治理/发布；移入 US1（用户故事 1）。新增 T103–T108 承接旧契约和实现迁移。
+编号为稳定任务身份，新增依赖可能指向更大编号；实际执行按显式依赖和下述阶段，不能按编号递增盲跑。
+T017 的任务构建、T024 的原构建输入、T025–T026 的软件发布/导出等均只保留 2.0 证据；T108/T047
+完成后才满足新版外部示范准入与实际发布。已勾选不代表新版交付自动完成。
 
 ## Format and Execution Rules
 
 - 任务采用 `- [ ] T编号 [P可选] [US编号] 描述与路径`。US 表示用户故事，P 表示明确列出的并行波次。
-  数字是默认执行顺序；每项显式依赖优先，满足依赖的独立分支可以提前执行。
-- 功能需求 FR、成功标准 SC 的编号均指规格 2.0。最小可行版本称 MVP；SFT 为监督微调，RL 为
+  编号不再表示执行顺序；显式依赖优先，满足依赖的独立分支可以提前执行。
+- 功能需求 FR、成功标准 SC 的编号均指规格 2.1。最小可行版本称 MVP；SFT 为监督微调，RL 为
   强化学习；CPU 为中央处理器、GPU 为图形处理器，GiB 为 2^30 字节的吉比字节。
 - 测试任务来自规格中明确要求的契约、失败处理、公平性和验收场景；先验证失败原因，再实现并重跑。
   不为简单文档或原样上游包装添加逐行镜像测试，不复制开源组件已有的算法测试。
@@ -24,13 +28,16 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
   指定验收通过后才勾选；依赖缺失时记录未完成，不能用软件替身、旧日志或计划结果代替。
 - 所有数据集发布均指本地不可变产物提交；不授权上传外部平台或 Git 提交。外部采样/租机必须已有
   资源授权、报价和冻结停止上限；任务清单本身不增加现金授权。
+- 正式 SFT 示范来自外部开源数据集；本地任务、固定动作、评测输出和 RL 探针不得混入。外部发布
+  不依赖本地环境或模型生成，训练消费/重放/结果/奖励资格分开，未知不伪造成功。
+- 首版不安排自行采样生产训练数据。修复保留父记录，新来源/修复重过治理进入下一候选池；冻结实验中途不单独补某组。
 - 本版不再展开正式 RL 优化；接口/真实采样/长程/稀疏奖励兼容必须完成，不能降为可选。
 
 ## Path Conventions
 
 一个 Python 包 `src/code_data_factory/`；命令入口 `src/code_data_factory/cli.py`，命令名称为 `cdf`。
 测试在 `tests/{unit,contract,integration,fixtures}/`，配置在 `configs/`，数据在 `data/`，运行证据在
-`artifacts/`，报告在 `reports/`。这些为待创建路径，当前不存在并不表示任务已经完成。
+`artifacts/`，报告在 `reports/`。已有模块按需迁移，尚缺路径按任务创建，不重复搭建已实现组件。
 通用事实由契约表和带哈希产物保存；索引/报告从事实重建。共享文件的编辑按依赖串行，`[P]` 不允许
 同时修改 `cli.py`、依赖锁、共享契约或证据日志。
 
@@ -62,9 +69,9 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 
 ## Phase 3: User Story 1 - 生产可追踪的任务与轨迹数据版本 (Priority: P1)
 
-**Goal**: 公开原料→规范记录→治理/去重/分组→增量版本；为实际验证和训练提供可追踪输入。
-**Independent Test**: 用独立手写夹具测试导入、发布与撤销、本地/Ray 等价和 SFT 导出；夹具证据
-仅软件级。正式可执行数据发布须等 US2 的真实验证，不能由此阶段的夹具替代。
+**Goal**: 外部已有示范→规范化/治理→合格候选池→正式数据版本与 SFT 视图。
+**Independent Test**: 原夹具验证治理软件；T103–T108 迁移准入，T045–T047 用真实外部数据验证
+发布/导出。即使本地任务环境和模型生成不可用，合格示范仍可发布；不能把夹具算作实际数据交付。
 
 ### Tests
 
@@ -92,12 +99,31 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [X] T031 [US1] 从规范导入/草稿重建一次版本并测试撤销传播、SFT 掩码和原始失败保留，保存 `artifacts/checkpoints/us1-software.json`，仅报告有实际证据的用途与数据数量。（依赖：T030）
 - [X] T032 [US1] 在本机私有决策记录（不提交）中记录 US1 数据治理取舍、SC-001/004–007 的软件证据和剩余真实发布门禁，并把检查回执关联到 `artifacts/checkpoints/us1-software.json`。（依赖：T031）
 
-**Checkpoint**: US1 软件治理可独立演示；正式合格池与实际质量指标由 T047 回验，不得冒充已执行验证。
+**Checkpoint (2.0 retained)**: T013–T032 只保留原软件治理证据；以下迁移完成前不声称外部训练数据已交付。
+
+### 2.1 Migration and External Data Delivery
+
+T103–T108 是本次新增、尚未执行的工作。原研究中的 Toucan 审计和原导入的 HISTORICAL_ONLY
+状态只是输入；必须重新按用途审核，不因本次文档修改而把任何旧记录直接晋级。
+
+- [ ] T103 [US1] 同步 `specs/001-code-data-factory/data-model.md`、`specs/001-code-data-factory/contracts/artifacts.md`、`specs/001-code-data-factory/contracts/cli.md`、`specs/001-code-data-factory/research.md`、`specs/001-code-data-factory/quickstart.md`、`specs/001-code-data-factory/checklists/requirements.md` 与 `README.md` 的来源/准入迁移；定义外部示范与可执行任务、训练审核与结果/奖励证据的独立契约版本及旧记录迁移，撤销已失效的自采样发布说明，不沿用旧检查单通过状态。（依赖：T032）
+- [ ] T104 [US1] 在 `tests/contract/test_external_eligibility.py`、`tests/integration/test_external_publication.py` 编写独立正反例：完整不可重放示范按规则接受、缺定义/上下文拒绝、源标签不变成执行 PASS/奖励、修复父链及本项目采样混入拒绝；发布测试禁用模型生成与本地环境。（依赖：T103）
+- [ ] T105 [US1] 在 `src/code_data_factory/contracts/tasks.py`、`src/code_data_factory/contracts/trajectory.py`、`src/code_data_factory/contracts/verification.py` 实现外部示范/上游任务引用与可执行 TaskPackage 分开建模、版本化准入决策/质量依据/重放能力及来源声明分离，环境/采样字段允许明确缺失；旧对象不就地改用途，更新模式导出。（依赖：T104）
+- [ ] T106 [US1] 修改 `src/code_data_factory/sources/audit.py`、`src/code_data_factory/sources/toucan.py`、`configs/sources/toucan-sft.json` 及按实际新来源增加的适配器，保留上游工具定义、消息/调用/返回/答案和分片记录定位；取消统一 HISTORICAL_ONLY 的硬编码，候选由准入政策判定；确定性修复留父链，不执行来源表达式或重跑工具补正文。（依赖：T105）
+- [ ] T107 [US1] 在 `src/code_data_factory/processing/quality.py`、`src/code_data_factory/datasets/build_input.py`、`src/code_data_factory/datasets/publish.py`、`src/code_data_factory/datasets/export_sft.py` 和 `configs/quality/external-sft.yaml` 实现分用途质量与发布，训练成员引用审核证据而非统一 outcome=PASS；源身份/原生工具语义/切分/敏感/上下文及真实目标映射通过才发布，拒绝本项目生成与评测记录，不调用模型/工具重新生成示范，发布只读取冻结输入和审核记录。（依赖：T106）
+- [ ] T108 [US1] 更新 `src/code_data_factory/cli.py`、`dvc.yaml`、`src/code_data_factory/datasets/quality_reports.sql`、`src/code_data_factory/checkpoints/us1.py` 使外部输入贯穿构建/发布/导出与原始→规范→合格→发布计数、保留率/词元/成本；运行核心/交互软件契约、迁移、增量等价/撤销/掩码及无环境发布回归，保存 `artifacts/checkpoints/external-migration.json` 并复核本机私有记录，软件测试不得算 SC-016 的真实外部交付。（依赖：T107）
+
+- [ ] T045 [US1] 按 `configs/sources/external-training.json`、`configs/quality/external-sft.yaml` 对实际外部来源做试点：保留上游版本/许可/原始分片及工具定义，按来源和能力切片抽审至少 30 条（不足全审并注明局限）；保存 `artifacts/data-audit/external-pilot/manifest.json`、`artifacts/data-audit/external-pilot/trajectory_review.parquet` 和来源—评测能力映射，无合格来源则继续外部选源，不自行采样补足。（依赖：T108）
+- [ ] T046 [US1] 在 `configs/data/external-production.yaml` 冻结外部分片、质量规则、切分登记及批处理费用/规模上限，复用 Ray 治理实际原料并输出 `data/candidates/external/manifest.json`；根据实际保留率、独立任务/派生数、能力覆盖和有效词元决定扩量，至少一个真实来源非空；拒绝/待复核/修复可对账，本项目任务或采样进入数必须为零。（依赖：T045）
+- [ ] T047 [US1] 将 T046 的外部合格池发布至 `data/releases/external/`、导出至 `data/exports/external/`，验证全部目标可追溯上游消息及修复父链；禁用本地交互环境和模型生成重建，成员/逻辑哈希相同，缺审核证据版本拒绝；保存 `artifacts/checkpoints/us1-external.json`，完成 SC-016–018 与原 US1 实际发布回验，记录实际词元/质量/成本，不依赖 T044 或 T058。（依赖：T046）
+
+**Checkpoint (2.1 required)**: T047 完成真实外部训练发布，SC-016–018 可追溯；无环境/采样仍可运行主线。
+
 
 ## Phase 4: User Story 2 - 判断工具轨迹是否真正完成任务 (Priority: P1)
 
 **Goal**: 复用 Agent/工具组件，获得独立、可重复且不向模型泄漏真值的交互证据。
-**Independent Test**: 至少 35 个正负哨兵、100 个固定动作任务重复执行、30 条真实轨迹抽查。
+**Independent Test**: 至少 35 个正负哨兵、100 个固定动作任务重复执行；原 30 条采集抽查转为 T045 外部示范审核。此分支不生产首版训练池。
 
 ### Tests
 
@@ -116,12 +142,9 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [X] T042 [US2] 在 `src/code_data_factory/verification/rewards.py`、`configs/quality/reward-terminal-v1.yaml` 实现已验证 PASS→1、FAIL→0、UNKNOWN→null 的独立版本记录，过程诊断不混入终局奖励，原证据不可覆盖。（依赖：T041）
 - [X] T043 [US2] 在 `src/code_data_factory/cli.py` 接入 `environment check`、`trajectory collect/inspect/replay`、`verify run`，对统一输出和所有终态进行契约核对。（依赖：T028、T042）
 - [X] T044 [US2] 在合格 Linux 环境完成 100 先导任务各两次固定动作执行与至少 35 例全部金标准对照，保存 `artifacts/verifications/pilot/manifest.json`；逐任务审计依据，失败先修复并停止扩大采样。（依赖：T032、T043）
-- [ ] T045 [US2] 在已授权模型/预算内采集实际先导轨迹并抽查至少 30 条，保存 `artifacts/interactions/pilot/manifest.json`、`artifacts/data-audit/trajectory_review.parquet`；逐轮输入、依赖、结果和全部失败成本完整。（依赖：T044）
-- [ ] T046 [US2] 按 `configs/tasks/production.yaml` 冻结独立分组后扩大训练候选，目标上限 5000 任务、每题最多四次、总计最多 20000 次尝试，保存 `artifacts/interactions/production/manifest.json`；只使用训练分组，单列未达量/被过滤原因。（依赖：T045）
-- [ ] T047 [US2] 通过完整构建输入清单生成 `data/releases/verified/` 与 `data/exports/verified/`，重跑发布/掩码/谱系门禁并记录实际质量/成本；同池候选无未验证任务、历史观察或跨集合泄漏。（依赖：T026、T046）
-- [ ] T048 [US2] 保存 `artifacts/checkpoints/us2.json` 并更新本机私有决策记录（不提交），关联先导、正负对照、示范抽审及 US1 实际发布回验，分别声明软件、隔离执行与未训练边界。（依赖：T047）
+- [ ] T048 [US2] 保存 `artifacts/checkpoints/us2.json` 并更新本机私有决策记录（不提交），关联原 100 任务固定动作、35 例正负对照和独立判定；复核迁移对执行语义/环境版本的影响，受影响证据按新版本重跑，未受影响才引用旧回执；明确这些资产仅用于验证/评测，模型真实采样另由 T058 验收，外部数据发布另由 T047 验收，不将任一分支证据互相替代。（依赖：T044、T108）
 
-**Checkpoint**: 有可执行且独立验证的真实数据池；工具成功不能替代任务成功，US1 真实数据验收可回验。
+**Checkpoint**: 有可执行验证资产和独立结果判定；工具成功不能替代任务成功，也不能替代外部训练示范准入。
 
 ## Phase 5: User Story 6 - 扩展 RL 与长程轨迹 (Priority: P1)
 
@@ -131,7 +154,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 
 ### Tests
 
-- [ ] T049 [US6] 在 `tests/contract/test_training_consumer.py`、`tests/integration/test_long_horizon.py` 声明真实词元/输出标记、缺字段拒绝、未知奖励、32/128 步和不可恢复环境的预期行为，替身与真实运行标记分离。（依赖：T048）
+- [ ] T049 [US6] 在 `tests/contract/test_training_consumer.py`、`tests/integration/test_long_horizon.py` 声明真实词元/输出标记、缺字段拒绝、未知奖励、32/128 步和不可恢复环境的预期行为，替身与真实运行标记分离。（依赖：T048、T108）
 
 ### Implementation
 
@@ -142,8 +165,8 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T054 [US6] 在 `src/code_data_factory/verification/rescore.py`、`tests/fixtures/sparse-rewards/`、`configs/quality/reward-terminal-v2.yaml` 实现固定证据重评分与按任务/尝试的奖励分布报告，两个版本差异可为零但须解释，不引入自动密集奖励。（依赖：T053）
 - [ ] T055 [US6] 在 `src/code_data_factory/cli.py` 接入 `compatibility check` 三模式及 `reward rescore`，回执按接口替身、真实采样、长程/恢复逐项记录，缺真实运行不签发笼统兼容成功。（依赖：T054）
 - [ ] T056 [US6] 执行两入口固定动作、32/128 步存读、上下文改写、受控恢复/不支持拒绝及四类稀疏奖励重评分，保存 `artifacts/compatibility/contract/`、`artifacts/compatibility/long-horizon/`，包括状态/哈希/词元关联检查。（依赖：T055）
-- [ ] T057 [US6] 在 `configs/experiments/model-candidates.yaml`、`artifacts/compatibility/model-profile.json` 固定 Qwen3-8B 首选与 Qwen3-4B 事前备选顺序及实际 revision/模板/思考模式，完成推理/词元通道资源探针；不声称 SFT 已可训练，费用接 T010。（依赖：T056）
-- [ ] T058 [US6] 用 T057 模型在合格环境完成至少两个任务各两次真实训练器采样，保存 `artifacts/compatibility/sampling/`，核对实际输入输出词元、mask、版本、成本及未调用优化器；不能用成功脚本代替真实模型失败轨迹。（依赖：T057）
+- [ ] T057 [US6] 在 `configs/experiments/model-candidates.yaml`、`artifacts/compatibility/model-profile.json` 固定 Qwen3-8B 首选与 Qwen3-4B 事前备选顺序及实际 revision/模板/思考模式，完成推理/词元通道资源探针；不声称 SFT 已可训练，费用接 T010。（依赖：T012、T103）
+- [ ] T058 [US6] 用 T057 模型在验证分支合格环境完成至少两个任务各两次真实训练器采样，保存 `artifacts/compatibility/sampling/`，核对实际输入输出词元、mask、版本、成本及未调用优化器；不能用成功脚本代替真实模型失败轨迹，探针输出不进入正式 SFT 池。（依赖：T056、T057）
 - [ ] T059 [US6] 汇总 SC-011–013 至 `artifacts/checkpoints/us6.json` 并更新本机私有决策记录（不提交），注明后续 RL 仅增加算法/预算附件，真实长程能力与 RL 参数更新尚未验证。（依赖：T058）
 
 **Checkpoint**: 首版强制扩展验收完成；未取得真实采样、恢复或长程证据的项保持未完成。
@@ -156,17 +179,17 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 
 ### Tests
 
-- [ ] T060 [US3] 在 `tests/contract/test_evaluation_feedback.py` 验证固定分母、失败重试、开发/test 权限、原因假设与事实分离、目标干预不被匹配消除，并拒绝最终测试引用进入反馈。（依赖：T048）
+- [ ] T060 [US3] 在 `tests/contract/test_evaluation_feedback.py` 验证固定分母、失败重试、开发/test 权限、原因假设与事实分离、目标干预不被匹配消除，并拒绝最终测试引用进入反馈。（依赖：T108）
 
 ### Implementation
 
-- [ ] T061 [US3] 在 `src/code_data_factory/evaluation/suites.py`、`configs/evaluation/tool-tasks.yaml` 构建开发/最终测试各至少 200 任务、三个族各至少 40、测试至少 50 未见组合且至少 20 独立来源—模板连通组；冻结标识/私有参考与切分登记，组不足阻断归因。（依赖：T047、T060）
+- [ ] T061 [US3] 在 `src/code_data_factory/evaluation/suites.py`、`configs/evaluation/tool-tasks.yaml` 构建开发/最终测试各至少 200 任务、三个族各至少 40、测试至少 50 未见组合且至少 20 独立来源—模板连通组；冻结标识/私有参考与切分登记，组不足阻断归因；工具名可不同，但与外部训练数据的能力语义对应须可解释，外部测试和本地任务均不流入 SFT 池。（依赖：T045、T060）
 - [ ] T062 [US3] 在 `src/code_data_factory/evaluation/interactive.py` 实现实际逐步执行评测和 TaskSuccess@1（一次完整尝试成功率），固定全分母与系统故障最多一次原配置重试，另报有效执行覆盖、恢复/未见组合/成本/约束；未解决系统故障阻断因果结论。（依赖：T061）
 - [ ] T063 [US3] 在 `src/code_data_factory/evaluation/bfcl.py`、`configs/evaluation/bfcl-local-v4.yaml` 复用 BFCL 官方评测程序，解析 `f7cf735` 完整提交及数据/许可、冻结本地多轮/无关工具子集和协议偏离；需执行不可信代码的子集隔离不通过则拒绝。（依赖：T062）
-- [ ] T064 [US3] 以 T057 模型运行项目及外部开发评测，保存 `artifacts/evaluations/base-development/` 和候选池事前难度估计，模型/模板/工具版本清楚；此阶段不解锁最终 test。（依赖：T057、T063）
+- [ ] T064 [US3] 以 T057 模型运行项目及外部开发评测，保存 `artifacts/evaluations/base-development/` 和候选池事前难度估计，模型/模板/工具版本清楚；此阶段不解锁最终 test。（依赖：T046、T057、T063）
 - [ ] T065 [US3] 在 `src/code_data_factory/evaluation/findings.py`、`src/code_data_factory/evaluation/findings.sql` 使用 DuckDB 汇总错误/依赖/上下文切片，形成 Finding 的原始证据、假设、反证及置信程度，不称为已证明因果。（依赖：T064）
-- [ ] T066 [US3] 在 `src/code_data_factory/datasets/feedback.py`、`configs/quality/feedback.yaml` 实现 DataAction/复验关系和发现驱动选择；首轮只在同一冻结合格池重选，新生成/修复不得单独混入处理组。（依赖：T065）
-- [ ] T067 [US3] 在 `src/code_data_factory/datasets/recipes.py` 构建 RandomMatched 与 ClosedLoop 草稿，匹配来源/粗任务族/深度/长度/验证强度/基线难度，保留失败类型覆盖差异，保存联合支持、共同剔除与平衡报告至 `data/recipes/main/`。（依赖：T066）
+- [ ] T066 [US3] 在 `src/code_data_factory/datasets/feedback.py`、`configs/quality/feedback.yaml` 实现 DataAction/复验关系和发现驱动选择；首轮只在同一冻结外部合格池重选，新增外部来源/修复先重过治理进入下一候选池版本，不单独混入处理组，不启动训练数据自采样。（依赖：T065）
+- [ ] T067 [US3] 在 `src/code_data_factory/datasets/recipes.py` 从外部合格池构建 RandomMatched 与 ClosedLoop 草稿，匹配来源/粗任务族/深度/长度/验证强度/基线难度，保留失败类型覆盖差异，保存联合支持、共同剔除与平衡报告至 `data/recipes/main/`。（依赖：T047、T066）
 - [ ] T068 [US3] 在 `src/code_data_factory/cli.py` 接入 `evaluate run`、`feedback build`，确保正式测试解锁依赖预登记与数据冻结，不以命令参数绕过；评测和反馈均出明细与产物清单。（依赖：T067）
 - [ ] T069 [US3] 执行开发评测夹具→发现→选择配方→发布草稿的集成验证，保存 `artifacts/checkpoints/us3-software.json`，验证每次非随机选择都有 finding/action，最终 test 内容与标识不进入反馈。（依赖：T068）
 - [ ] T070 [US3] 在本机私有决策记录（不提交）中记录 US3 软件里程碑和 `artifacts/checkpoints/us3-software.json`，明确 SC-008 的真实训练复评依赖 T079/T083/T084，尚不能关闭完整反馈验收。（依赖：T069）
@@ -190,7 +213,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [ ] T075 [US4] 按 `configs/experiments/calibration.yaml` 执行单卡模型/方法可行性门禁并保存 `artifacts/experiments/calibration/method_selection.json`，全参数→LoRA→QLoRA 首个通过者统一采用，检查反向传播、至少 10% 显存余量、有限损失、保存重载和预算。（依赖：T074）
 - [ ] T076 [US4] 运行两配方各一次单种子校准，保存 `artifacts/experiments/calibration/manifest.json`，核验等词元/步数、交互评测、吞吐与六次成本预测及 15% 储备；不以校准分数选择方法或正式超参数。（依赖：T075）
 - [ ] T077 [US4] 在 `src/code_data_factory/evaluation/preregister.py`、`configs/experiments/sft-main.yaml` 固定目标差异、匹配容差、三种子、模型/方法/工具/模板、曝光预算、test 解锁和判定阈值；核对至少 20 统计组及 10000 次固定种子重采样，接入 `experiment calibrate/preregister/run` 命令。（依赖：T076）
-- [ ] T078 [US4] 发布两个实际数据视图、批次和匹配报告并冻结 `artifacts/experiments/sft-main/experiment_plan.json`，验证报价/总预算、全部依赖及当前模型版本一致；模型备选切换时按下述“版本失效规则”重新建立相关证据后才能登记。（依赖：T077）
+- [ ] T078 [US4] 复核两个视图的外部来源/修复链与无自采样混入，发布实际数据视图、批次和匹配报告并冻结 `artifacts/experiments/sft-main/experiment_plan.json`，验证报价/总预算、全部依赖及当前模型版本一致；模型备选切换时按下述“版本失效规则”重新建立相关证据后才能登记。（依赖：T047、T077）
 - [ ] T079 [US4] 执行 RandomMatched/ClosedLoop 各种子 17/29/43 共六次正式 SFT，保存 `artifacts/experiments/sft-main/training/` 的参数更新、检查点、词元/步数、日志、费用和全部终态；失败保留并标未达训练门禁，不筛选有利种子。（依赖：T078）
 - [ ] T080 [US4] 数据/方法冻结后，对六次有效训练模型运行项目与 BFCL 固定最终测试，保存 `artifacts/evaluations/formal-test/`；每轮真实执行工具、固定分母和重试、外部分项与协议偏离分别报告。（依赖：T079）
 - [ ] T081 [US4] 在 `src/code_data_factory/evaluation/statistics.py` 复用统计库汇总逐种子差值/均值/标准差和来源—模板组配对 95% 区间，保持组间配对，不将改写当独立样本，不以三个粗任务族代替统计组。（依赖：T080）
@@ -234,7 +257,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 
 - [ ] T099 运行项目构建与适当的静态/契约/集成检查，保存 `artifacts/checkpoints/software-final.json`，核对锁文件、安装入口和模式；真实资源检查只引用已验证同版本记录或按必要失效项重跑。（依赖：T059、T070、T085、T098）
 - [ ] T100 逐步核对 `specs/001-code-data-factory/quickstart.md` 与实际 `cdf` 输入输出和已产生运行证据，修正指南漂移，生成 `artifacts/checkpoints/quickstart.json`；不为复查命令再次无条件启动六次付费训练。（依赖：T099）
-- [ ] T101 将全部 FR-001–040、SC-001–015 映射到任务、测试、真实产物和当前状态，输出 `reports/final/requirements-traceability.md` 与机器清单，任何未完成强制验收保持 OPEN。（依赖：T100）
+- [ ] T101 将全部 FR-001–044、SC-001–018 映射到任务、测试、真实产物和当前状态，输出 `reports/final/requirements-traceability.md` 与机器清单，任何未完成强制验收保持 OPEN。（依赖：T100）
 - [ ] T102 更新 `README.md` 与 `reports/final/report.md`，并同步更新本机私有决策记录（不提交）；按实际结果展示数据工程、开源复用、扩展兼容和归因，保留限制/失败；不宣称正式 RL 或长程模型收益。（依赖：T101）
 
 ## Dependencies and Execution Order
@@ -242,17 +265,20 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 ### Story Dependency Graph
 
 ```text
-Setup -> Foundation -> US1 软件治理 -> US2 实际执行/合格池
-                                      |-> US6 兼容/长程/真实采样
-                                      |-> US5 多节点分支 T087–T091
-US2 + US6 模型身份 -> US3 开发评测/配方 -> US4 校准/六次训练/复评
-                                               |-> US3 实际闭环回填 T084
-US4 + US5 多节点分支 -> US5 全谱系/报告/复现 -> 最终验收
+已完成 Foundation / US1 原软件 (T001–T032)
+  -> T103–T108 契约/准入迁移 -> T045 外部试点 -> T046 治理候选池 -> T047 发布/导出
+                                                  |-> US5 多节点 T087–T091
+T045 + 反馈软件 -> 开发评测；T046 + T057 模型身份 -> 开发发现
+T047 + 开发发现 -> T067 同池配方 -> US4 校准/六次训练/复评 -> T084 归因闭环
+已完成工具验证 T033–T044 -> T048 检查点 -> US6 兼容/长程/真实采样
+US4 + US5 多节点 -> US5 全谱系/报告/复现 -> 最终验收
 ```
 
-US1 夹具导出不是已验证正式发布；T047 补真实门禁。US3 的软件回执 T070 可解锁 US4，T084 才完成
-SC-008；不得把 T084 设成 US4 的前置条件。US5 多节点分支仅依赖已可运行的数据处理，与模型训练
-独立，可按计划第 7 周执行；不要机械等到 T085 才开始。
+T103–T108 先修分用途契约与旧发布实现，再开展真实外部试点。T045–T047 的依赖链不包含
+T033–T044、T048–T059；无可执行环境/模型生成仍须完成外部数据发布。
+US6 复用 T108 的记录迁移，但其真实采样不阻塞正式数据池。T057 模型身份可提前确定，不以长程
+测试或采样成功解锁开发评测。T047 是数据发布回验，T084 才完成 SC-008 的真实训练闭环。
+US5 多节点分支在 T047 后独立推进；不必等待训练。所有新前置关系均在下方逐项依赖中声明。
 
 ### Default Sequential and Parallel Rules
 
@@ -282,6 +308,8 @@ T057 冻结的是实际采样模型身份，不证明其 SFT 可行性。若 T07
 ## Requirement and Acceptance Coverage
 
 映射给出负责实现和关键验收的任务；实际完成状态及证据最终由 T101 生成，不据本表预先标通过。
+FR-001–004/014/018/020/022/025 的新版来源/准入部分由 T103–T108 与 T045–T047 补验；
+表中的旧任务映射只覆盖原功能部分。SC-016–018 不继承旧检查点。
 
 | 功能需求 | 负责实现/验证任务 |
 |---|---|
@@ -296,13 +324,17 @@ T057 冻结的是实际采样模型身份，不证明其 SFT 可行性。若 T07
 | FR-027–030 | T060–T064、T068、T071–T085、T092–T102 |
 | FR-031–037 | T049–T059、T072、T077–T078、T101–T102 |
 | FR-038–039 | T022、T030、T087–T091、T098 |
-| FR-040 | T003、T012、T032、T048、T059、T070、T085、T098、T101–T102 |
+| FR-040 | T003、T012、T032、T048、T059、T070、T085、T098、T101–T103、T108 |
+| FR-041 | T103–T108、T045–T047、T066–T067、T078 |
+| FR-042 | T103–T108、T045、T047 |
+| FR-043 | T104、T107–T108、T047 |
+| FR-044 | T045–T047、T066–T067、T078 |
 
 | 成功标准 | 关键实际验收任务 | 不能代替的证据 |
 |---|---|---|
 | SC-001 | T027、T031、T047、T092、T096 | 真实成员/撤销关系，不能只有空表 |
 | SC-002 | T044 | 100 个独立任务、各两次真实固定动作执行 |
-| SC-003 | T034、T044–T045 | 至少 35 个独立正负对照按预期分类 |
+| SC-003 | T034、T044、T048 | 至少 35 个独立正负对照按预期分类 |
 | SC-004 | T013、T026、T047 | 实际模板/词元目标与失败原池对账 |
 | SC-005 | T014、T020、T029、T047 | 100 对人工复核及切分/污染检查 |
 | SC-006 | T014、T023、T030 | 本地/Ray、增量/全量等价和两种提交故障 |
@@ -315,6 +347,9 @@ T057 冻结的是实际采样模型身份，不证明其 SFT 可行性。若 T07
 | SC-013 | T042、T054、T056、T059 | 两奖励版本、四类稀疏记录与原证据不变 |
 | SC-014 | T087–T091、T098 | 64 GiB、真实 1/2/4 节点各五次及故障/费用 |
 | SC-015 | T086、T092–T102 | 真实重建/重算/删证据阻断及六个故事回执 |
+| SC-016 | T045–T047、T067、T078 | 真实外部非空池、100% 上游/修复追溯、零本项目采样、实际合格示范/词元非零及各阶段对账 |
+| SC-017 | T104–T108、T045 | 四类独立准入/拒绝/未知/修复案例，非笼统 PASS |
+| SC-018 | T104、T107–T108、T047 | 真实外部输入在无环境/无模型生成条件下独立发布及缺证据拒绝 |
 
 ## CLI Coverage
 
@@ -322,8 +357,8 @@ CLI 表示命令行界面；这里只映射 [命令契约](contracts/cli.md)，�
 
 | 命令组 | 任务 |
 |---|---|
-| `source audit/revoke`、`task build`、`trajectory import` | T015–T017、T020、T027–T028 |
-| `data build --backend/--resume`、`dataset publish/export-sft` | T018–T026、T028、T047 |
+| `source audit/revoke`、`task build`、`trajectory import` | T015–T017、T020、T027–T028、T103、T106、T108 |
+| `data build --backend/--resume`、`dataset publish/export-sft` | T018–T026、T028、T103–T108、T046–T047 |
 | `environment check`、`trajectory collect/inspect/replay`、`verify run` | T035–T043 |
 | `reward rescore`、`compatibility check` | T049–T058 |
 | `evaluate run`、`feedback build` | T060–T068 |
@@ -335,24 +370,24 @@ CLI 表示命令行界面；这里只映射 [命令契约](contracts/cli.md)，�
 
 ### MVP First
 
-先完成 T001–T032，演示真实原料的治理/去重/切分/版本与明确证据边界；这是数据工程软件 MVP。
-随后 T033–T048 加入 100 个先导任务及真实合格轨迹，形成可对外解释的完整数据产线。两者均不是
-整个首版完成；T049–T059 的 RL/长程兼容及后续固定条件训练/分布式验收仍为必需。
+T001–T032 的软件基础已有原范围验收，不重新勾选或扩张含义。本版最小可行交付是 T103–T108
+完成准入迁移，再以 T045–T047 实际从外部数据构建训练版本与视图。T033–T044 的验证资产保留
+使用，但不作为这一主线的前置条件。RL/长程、固定条件训练和分布式验收仍为完整首版必需。
 
 ### Incremental Delivery
 
-1. 包/契约与原料审计 → US1 数据治理软件；任务先导先以草稿准备，真实可执行门禁在 T044。
-2. 实际工具交互/验证 → 合格池、质量/成本及原始失败；不在先导通过前扩大采样。
-3. RL/长程兼容 → 独立真实采样回执；同期推进独立多节点数据实验。
-4. 开发评测/配方 → 单卡校准/预登记 → 六次正式训练/复评 → 回填真实数据反馈结果。
-5. 多节点和模型证据汇聚 → 独立复现/删证据门禁 → 需求证据矩阵与可读报告。
+1. T103–T108：同步派生契约，修正硬编码历史用途、可执行任务强依赖和统一 PASS 发布门禁。
+2. T045–T047：审查真实外部示范、批量治理、发布/导出；数量由可用数据/覆盖/词元确定。
+3. T048–T059：独立验证与 RL/长程兼容；T057 模型身份可提前，探针不成为训练数据来源。
+4. T060–T085：开发评测→同池选择/配比→校准/预登记→六次训练/复评→真实归因闭环。
+5. T087–T091 多节点分支与模型实验独立推进，T092–T102 汇总谱系、复现和全部需求验收。
 
-12 周为 plan 的排期目标，实施先遵循依赖。第 1 周准备的 100 任务不能在尚无执行器时标已验证；
-真实先导随 T044 门禁完成。不得因日历日期到达就越过契约、环境、费用或公平性检查。
+12 周是 plan 的排期目标；按已有回执继续、遵循依赖，不为日期要求跳过门禁或扩大训练生成。
 
 ### Stop and Scope Rules
 
-- 只暂停缺依赖的分支；保留失败产物，继续可独立完成的数据工程工作。
+- 只暂停缺依赖的分支；保留失败产物，继续可独立完成的数据工程工作。外部数据不足优先选源和
+  治理，不启动旧 T046 的自行采样；训练目标来自外部已有示范，不用本地任务或评测输出替代。
 - CPU/GPU/模型服务费用统一进入项目费用视图；GPU 5000 元启动软上限、最高可论证 10000 元和
   15% 储备沿用 plan，外部费用需独立已授权上限，不据任务数量增加预算。
 - 实际上游接口不足时记录具体缺口，优先适配已有扩展点；不得直接转向自建平台或新增第二套引擎。
