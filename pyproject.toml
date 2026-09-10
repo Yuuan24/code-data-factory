@@ -22,6 +22,7 @@ data = [
   "ray[data]>=2.54.0,<3",
 ]
 interaction = [
+  "duckdb>=1.5.0,<2",
   "pint>=0.25.3,<1",
   "smolagents>=1.22.0,<2",
 ]
