@@ -115,7 +115,7 @@ description: "Dependency-ordered implementation tasks for Agent trajectory data 
 - [X] T041 [US2] 在 `src/code_data_factory/interaction/replay.py` 实现日志 inspect 和固定动作真实 replay 两种入口，验证冻结初始资源/工具版本、保存新尝试和差异；缺原环境不能偷偷换工具。（依赖：T040）
 - [X] T042 [US2] 在 `src/code_data_factory/verification/rewards.py`、`configs/quality/reward-terminal-v1.yaml` 实现已验证 PASS→1、FAIL→0、UNKNOWN→null 的独立版本记录，过程诊断不混入终局奖励，原证据不可覆盖。（依赖：T041）
 - [X] T043 [US2] 在 `src/code_data_factory/cli.py` 接入 `environment check`、`trajectory collect/inspect/replay`、`verify run`，对统一输出和所有终态进行契约核对。（依赖：T028、T042）
-- [ ] T044 [US2] 在合格 Linux 环境完成 100 先导任务各两次固定动作执行与至少 35 例全部金标准对照，保存 `artifacts/verifications/pilot/manifest.json`；逐任务审计依据，失败先修复并停止扩大采样。（依赖：T032、T043）
+- [X] T044 [US2] 在合格 Linux 环境完成 100 先导任务各两次固定动作执行与至少 35 例全部金标准对照，保存 `artifacts/verifications/pilot/manifest.json`；逐任务审计依据，失败先修复并停止扩大采样。（依赖：T032、T043）
 - [ ] T045 [US2] 在已授权模型/预算内采集实际先导轨迹并抽查至少 30 条，保存 `artifacts/interactions/pilot/manifest.json`、`artifacts/data-audit/trajectory_review.parquet`；逐轮输入、依赖、结果和全部失败成本完整。（依赖：T044）
 - [ ] T046 [US2] 按 `configs/tasks/production.yaml` 冻结独立分组后扩大训练候选，目标上限 5000 任务、每题最多四次、总计最多 20000 次尝试，保存 `artifacts/interactions/production/manifest.json`；只使用训练分组，单列未达量/被过滤原因。（依赖：T045）
 - [ ] T047 [US2] 通过完整构建输入清单生成 `data/releases/verified/` 与 `data/exports/verified/`，重跑发布/掩码/谱系门禁并记录实际质量/成本；同池候选无未验证任务、历史观察或跨集合泄漏。（依赖：T026、T046）
