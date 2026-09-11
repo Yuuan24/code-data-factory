@@ -1,7 +1,7 @@
 # Quickstart Validation Guide: 轨迹数据产线
 
-**Revision**: 2.0 | **Status**: T001–T012 的基础包、锁、契约和 Linux 依赖读写证据已完成；后续数据、
-隔离执行、Ray、真实采样和训练任务仍未完成。命令契约见 [contracts/cli.md](contracts/cli.md)。
+**Revision**: 2.1 | **Status**: 外部训练数据主线待 T103–T108 实现；已有 T001–T044 仅保留原软件和
+固定动作验证范围。外部发布不依赖本地环境或模型生成。命令契约见 [contracts/cli.md](contracts/cli.md)。
 
 ## 1. Prerequisites and Reproducible Setup
 
@@ -35,49 +35,42 @@ archive 可用，可使用直接从 GitHub 下载的 exact-commit archive，并�
 保存环境和依赖清单；数据组件必须真实安装。执行门禁另需无特权受限容器；训练和真实采样另需
 通过模型/预算门禁的资源。不需要建设网页前端、线上调度平台或多 Agent 服务。
 
-## 2. Audit Existing Data and Build 100 Pilot Tasks
+## 2. Audit External Demonstrations
 
 ```bash
-uv run cdf source audit --manifest configs/sources/toucan-sft.json --output-dir artifacts/source-audit --json
-uv run cdf task build --config configs/tasks/pilot.yaml --output-dir data/pilot --json
-uv run cdf environment check --config configs/execution/local-tools.yaml --output-dir artifacts/preflight --json
+uv run cdf source audit --manifest configs/sources/external-training.json --output-dir artifacts/data-audit/external-pilot --json
+uv run cdf trajectory import --source configs/sources/external-training.json --adapter toucan --output-dir data/normalized/external-pilot --json
 ```
 
-预期：保存冻结来源、原始记录数、实际工具调用范围、初始状态缺失和许可判断。历史观察层与可执行
-层数量分开；100 个独立任务覆盖三个族，各不少于 20 个，改写不重复计任务。固定动作重复执行两次，
-准备至少 35 个正负哨兵（七类各至少五例）。先导失败则暂停扩大采样，不能以源数据总行数代替。
+预期：保存冻结来源、许可、原始分片、上游工具定义及消息/调用/返回/答案定位。训练准入、可重放性、
+结果/奖励证据分开；按来源和能力切片抽审至少 30 条，少量来源全审。此步骤不运行工具、不调用模型、
+也不将来源自报成功改写为本项目 PASS。
 
-## 3. Import and Collect Complete Attempts
+## 3. Build an External Candidate Pool Without an Environment
 
 ```bash
-uv run cdf trajectory import --source configs/sources/toucan-sft.json --adapter toucan --output-dir data/imported --json
+uv run cdf data build --input data/build-inputs/external-pilot.json --config configs/quality/external-sft.yaml --backend local --output-dir data/candidates/external --json
+uv run cdf dataset publish --draft data/candidates/external --output-dir data/releases/external --json
+uv run cdf dataset export-sft --dataset data/releases/external/dataset_manifest.json --config configs/experiments/export-sft.yaml --output-dir data/exports/external --json
+```
+
+预期：发布成员均能反查外部上游消息及确定性修复父链，且有独立训练准入决定；本项目任务、固定动作、
+交互评测与模型采样成员计数均为零。缺少训练准入、必要上下文、工具定义或目标映射的记录拒绝或待复核。
+
+## 4. Verify the Separate Executable Branch
+
+受控任务环境仅用于验证、交互评测与训练器采样兼容，不构成外部训练发布的输入或前置条件。
+
+```bash
+uv run cdf task build --config configs/tasks/pilot.yaml --output-dir data/pilot --json
+uv run cdf environment check --config configs/execution/local-tools.yaml --output-dir artifacts/preflight --json
 uv run cdf trajectory collect --tasks data/pilot/task_manifest.json --config configs/execution/collect.yaml --execution-config configs/execution/local-tools.yaml --output-dir artifacts/interactions/pilot --json
 uv run cdf verify run --attempts artifacts/interactions/pilot/manifest.json --config configs/quality/verifier.yaml --output-dir artifacts/verifications/pilot --json
 ```
 
-预期：每轮实际请求、输出、调用关联和工具结果存在；工具无报错但用错中间数值时判失败；验证器
-故障判 UNKNOWN。超限、模型错误和基础设施故障分别记录。查看历史日志不计真实执行。
-
-## 4. Govern, Deduplicate, Publish and Export
-
-创建构建输入清单 `data/build-inputs/pilot.json`，带哈希引用第 3 节导入的历史原料清单、
-`data/pilot/task_manifest.json`、实际采样 manifest、实际 verification manifest 和已冻切分登记簿；
-格式见 [构建输入契约](contracts/artifacts.md#build-input-manifest)。清单是批处理输入，不触发额外采样。
-历史观察层保留；只有执行/示范门禁通过的数据进入正式发布及 SFT 导出。
-
-```bash
-uv run cdf data build --input data/build-inputs/pilot.json --config configs/quality/build.yaml --backend local --output-dir data/draft/local --json
-uv run cdf data build --input data/build-inputs/pilot.json --config configs/quality/build.yaml --backend ray --output-dir data/draft/ray --json
-uv run cdf dataset publish --draft data/draft/local --output-dir data/releases/pilot --json
-uv run cdf dataset export-sft --dataset data/releases/pilot/dataset_manifest.json --config configs/experiments/export-sft.yaml --output-dir data/exports/pilot --json
-```
-
-预期：本地/Ray 决策、逻辑哈希一致，近重复候选至少人工抽审 100 对。同源文档、模板派生和重复簇
-不跨集合；新增桥接冲突须隔离，全量/增量读取同一登记簿。SFT（监督微调）目标只含经选择的模型
-输出及必要输出控制词元；用户、工具、输入包装和填充损失为零。原始失败记录数不因导出改变。
-
-故障验收：输出提交前终止一次、提交后重试一次，再以 `--resume <run-id>` 恢复；无重复/部分发布。
-撤销一个测试来源，列出全部受影响版本和结论。原始敏感内容不出现在审计打印中。
+预期：每轮实际请求、输出、调用关联和工具结果独立保存，工具无报错但跨步骤依赖错误仍判失败。
+此分支的任务、固定动作与模型调用费用只进入评测/兼容记录，不能写入 `data/releases/external/` 或
+`data/exports/external/`。
 
 ## 5. Verify RL and Long-Horizon Extension Now
 
@@ -114,13 +107,13 @@ uv run cdf benchmark run --plan configs/distributed/ray-scale-v1.yaml --output-d
 
 ```bash
 uv run cdf evaluate run --model configs/experiments/base-model.json --suite configs/evaluation/tool-tasks.yaml --split development --output-dir artifacts/evaluations/base-dev --json
-uv run cdf feedback build --evaluation artifacts/evaluations/base-dev/evaluation_run.json --pool data/releases/verified/dataset_manifest.json --policy configs/quality/feedback.yaml --output-dir data/recipes/main --json
+uv run cdf feedback build --evaluation artifacts/evaluations/base-dev/evaluation_run.json --pool data/releases/external/dataset_manifest.json --policy configs/quality/feedback.yaml --output-dir data/recipes/main --json
 uv run cdf experiment calibrate --config configs/experiments/calibration.yaml --output-dir artifacts/experiments/calibration --json
 uv run cdf experiment preregister --config configs/experiments/sft-main.yaml --calibration artifacts/experiments/calibration/manifest.json --output-dir artifacts/experiments/sft-main --json
 ```
 
-此处 `data/releases/verified` 为在先导通过后，由第 3–4 节相同流程按正式规模建立的合格池。
-两配方由同池导出；正式训练前分别执行发布和 SFT 导出，将数据/掩码/匹配产物写入计划。
+此处 `data/releases/external` 为第 2–3 节由外部示范治理建立的合格池，不依赖先导任务或模型生成。
+两配方由同池导出；正式训练前分别冻结发布和 SFT 导出，将数据/掩码/匹配产物写入计划。
 测试至少 200 个任务且含 20 个独立来源—模板连通组；开发至少 200 个任务。只有开发失败模式用于
 选择，目标干预不被匹配掉。相同完整目标、有效词元/步数/批次计算预算的计划匹配不成功就统一降档。
 
@@ -150,7 +143,7 @@ uv run cdf report build --plan artifacts/experiments/sft-main/experiment_plan.js
 
 ```bash
 uv run cdf evidence verify --manifest reports/sft-main/lineage_index.json --output-dir artifacts/evidence-audit --json
-uv run cdf reproduce --manifest data/releases/verified/dataset_manifest.json --output-dir artifacts/reproductions/verified --json
+uv run cdf reproduce --manifest data/releases/external/dataset_manifest.json --output-dir artifacts/reproductions/external --json
 ```
 
 预期：数据逻辑哈希一致，逐题指标可重算，来源与结论双向可追溯。删除一个必要证据后报告门禁

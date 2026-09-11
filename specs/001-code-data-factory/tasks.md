@@ -106,7 +106,7 @@ T017 的任务构建、T024 的原构建输入、T025–T026 的软件发布/导
 T103–T108 是本次新增、尚未执行的工作。原研究中的 Toucan 审计和原导入的 HISTORICAL_ONLY
 状态只是输入；必须重新按用途审核，不因本次文档修改而把任何旧记录直接晋级。
 
-- [ ] T103 [US1] 同步 `specs/001-code-data-factory/data-model.md`、`specs/001-code-data-factory/contracts/artifacts.md`、`specs/001-code-data-factory/contracts/cli.md`、`specs/001-code-data-factory/research.md`、`specs/001-code-data-factory/quickstart.md`、`specs/001-code-data-factory/checklists/requirements.md` 与 `README.md` 的来源/准入迁移；定义外部示范与可执行任务、训练审核与结果/奖励证据的独立契约版本及旧记录迁移，撤销已失效的自采样发布说明，不沿用旧检查单通过状态。（依赖：T032）
+- [X] T103 [US1] 同步 `specs/001-code-data-factory/data-model.md`、`specs/001-code-data-factory/contracts/artifacts.md`、`specs/001-code-data-factory/contracts/cli.md`、`specs/001-code-data-factory/research.md`、`specs/001-code-data-factory/quickstart.md`、`specs/001-code-data-factory/checklists/requirements.md` 与 `README.md` 的来源/准入迁移；定义外部示范与可执行任务、训练审核与结果/奖励证据的独立契约版本及旧记录迁移，撤销已失效的自采样发布说明，不沿用旧检查单通过状态。（依赖：T032）
 - [ ] T104 [US1] 在 `tests/contract/test_external_eligibility.py`、`tests/integration/test_external_publication.py` 编写独立正反例：完整不可重放示范按规则接受、缺定义/上下文拒绝、源标签不变成执行 PASS/奖励、修复父链及本项目采样混入拒绝；发布测试禁用模型生成与本地环境。（依赖：T103）
 - [ ] T105 [US1] 在 `src/code_data_factory/contracts/tasks.py`、`src/code_data_factory/contracts/trajectory.py`、`src/code_data_factory/contracts/verification.py` 实现外部示范/上游任务引用与可执行 TaskPackage 分开建模、版本化准入决策/质量依据/重放能力及来源声明分离，环境/采样字段允许明确缺失；旧对象不就地改用途，更新模式导出。（依赖：T104）
 - [ ] T106 [US1] 修改 `src/code_data_factory/sources/audit.py`、`src/code_data_factory/sources/toucan.py`、`configs/sources/toucan-sft.json` 及按实际新来源增加的适配器，保留上游工具定义、消息/调用/返回/答案和分片记录定位；取消统一 HISTORICAL_ONLY 的硬编码，候选由准入政策判定；确定性修复留父链，不执行来源表达式或重跑工具补正文。（依赖：T105）

@@ -1,7 +1,7 @@
 # Data Model: Agent 任务与交互轨迹
 
-**Contract version**: 2.0.0 | **Date**: 2026-09-08 | **Status**: 设计契约，尚未生成运行时模式。
-取代 1.x 单次代码样本语义；原产物不能重贴版本标签，迁移必须新建标识和来源映射。
+**Contract version**: 2.1.0 | **Date**: 2026-09-11 | **Status**: 2.1 外部训练示范契约；运行时模式待 T105 实现。
+取代 1.x 单次代码样本语义；2.0 产物不能重贴 2.1 标签，迁移必须新建标识和来源映射。
 字段使用 snake_case（下划线命名）；所有 `*_ref` 指向带内容哈希的 ArtifactRef（产物引用）。
 
 ## Shared Types and Rules
@@ -11,10 +11,27 @@
 - EvidenceLevel（证据层级）：`UNVERIFIED`、`SOFTWARE_VALIDATED`、`EXECUTION_VALIDATED`、
   `TRAINING_EVIDENCED`，分别为未验证、软件验证、隔离执行验证和训练证据。
 - UsageScope（用途）：`TRAIN`、`DEVELOPMENT`、`TEST`、`HISTORICAL_ONLY`、`BENCHMARK_ONLY`；
-  后两者分别仅历史观察和仅性能测试，不能进入正式训练/评测成员。
+  后两者分别仅历史观察和仅性能测试，不能进入正式训练/评测成员。`TRAIN` 只表示通过版本化
+  训练准入的外部示范用途，不表示已可重放、已验证 PASS 或可作在线采样消费。
 - `contract_version` 必填；未知主版本拒绝消费，新增可选字段允许兼容读取，语义变化必须升主版本。
 - ArtifactRef：`artifact_id, uri, sha256, byte_size, media_type, producer_run_id, access_scope`；
   `uri` 是项目相对路径或内容存储地址，禁止凭据和本机绝对路径。模型可见和验证器私有产物分开。
+
+## 2.1 External Demonstration Migration
+
+正式训练成员是 `ExternalDemonstration`，不是本项目的 `TaskPackage`、固定动作 attempt、评测输出或
+模型重新采样输出。字段为：`demonstration_id, source_record_id, upstream_task_ref, upstream_tool_bundle_ref,
+message_refs, call_result_refs, answer_ref, upstream_synthetic_status, parent_demonstration_id,
+repair_rule_ref, eligibility_decision_ref, replay_capability, result_evidence_ref, reward_evidence_ref,
+usage_scope, contract_version`。
+
+- `eligibility_decision_ref` 指向版本化训练准入决定，独立记录接受、拒绝或待复核及理由；不以
+  `outcome=PASS` 替代。
+- `replay_capability` 为 `SUPPORTED | UNSUPPORTED | UNKNOWN`，缺环境或初始状态时保持非支持/未知，
+  不影响已有充分质量证据的 SFT 准入。
+- `result_evidence_ref` 与 `reward_evidence_ref` 可为空；来源自报成功不能写为本项目 PASS 或奖励 1。
+- 仅确定性格式/唯一调用关联修复可产生新 `ExternalDemonstration`，必须关联父记录和修复规则；
+  不补写缺失工具返回、模型推理或答案。
 
 ## 1. SourceSnapshot and SourceRecord
 
@@ -50,7 +67,8 @@ policy_ref, sampling_config_ref, harness_ref, environment_ref, preflight_ref, bu
 started_at, finished_at, event_manifest_ref, final_output_ref, end_reason, cost_record_ref`。
 
 `actor_kind` 为 `HISTORICAL_IMPORT | SCRIPTED_FIXTURE | MODEL_GENERATION | MODEL_EVALUATION | TRAINER_SAMPLING`。
-`MODEL_GENERATION` 用于正式示范生成；历史导入没有真实策略元数据时 `policy_ref=null`，不能标为当前策略采样。
+`MODEL_GENERATION` 仅用于评测或兼容分支，不得作为 2.1 正式训练示范来源；历史导入没有真实策略元数据时
+`policy_ref=null`，不能标为当前策略采样。
 运行状态 `CREATED -> RUNNING -> SEALED`；进程中断仍创建 `SEALED` 回执并标明日志是否完整，
 未知最后动作结果不伪造完成。快照恢复产生新 attempt，关联父与分支点。
 
@@ -106,16 +124,17 @@ evidence_refs, actor_ref, parent_decision_id`。动作接受/拒绝/隔离/修�
 `DedupRelation`：对象对、类型、相似度、投影/组件/阈值版本、人工判断、代表选择理由。
 质量维度独立存结果，不只保存总分；错误示范可保留上下文但是否训练由冻结目标掩码决定。
 
-`DatasetVersion`：`dataset_id, parent_dataset_id, source_manifest_refs, task_manifest_ref,
-attempt_manifest_ref, membership_ref, recipe_ref, split_manifest_ref, quality_report_ref,
-cost_report_ref, data_card_ref, logical_content_hash, status`。
+`DatasetVersion`：`dataset_id, parent_dataset_id, source_manifest_refs, external_demonstration_manifest_ref,
+eligibility_manifest_ref, task_manifest_ref, attempt_manifest_ref, membership_ref, recipe_ref,
+split_manifest_ref, quality_report_ref, cost_report_ref, data_card_ref, logical_content_hash, status`。
 `status=DRAFT -> VALIDATED -> PUBLISHED`；后续撤销创建 `INVALIDATED` 记录，不覆盖旧内容。
-`membership` 引用 task/attempt/选择决策和用途，不拷贝完整事件正文；训练导出记录具体 message/token
-目标映射。原始失败池始终独立于合格示范视图。
+`membership` 对 2.1 训练版本引用 external demonstration、其准入决定、来源/修复链和用途；可执行
+task/attempt 是可选的附加证据，不是训练发布前提。训练导出记录具体 message/token 目标映射。原始
+失败池始终独立于合格示范视图。
 
 ## 8. SFTView and SamplingAttachment
 
-SFT（监督微调）视图：`view_id, dataset_id, attempt_id, context_refs, selected_target_spans,
+SFT（监督微调）视图：`view_id, dataset_id, demonstration_id, context_refs, selected_target_spans,
 model_template_ref, tokenized_example_ref, loss_mask_ref, effective_loss_tokens, export_policy_version`。
 `loss_mask` 为是否计入训练损失的逐词元标记；用户、工具、输入角色包装和填充为零；模型应生成的工具调用边界/结束词元按冻结模板计入目标。含未知错误定位的示范
 不得凭模型评分任意切段。原始生成词元缺失不阻止合法 SFT 重新分词，但必须注明是训练重编码。
@@ -159,7 +178,7 @@ runtime_ref, checkpoint_ref, log_ref, cost_ref, status`。`status` 包含成功�
 
 `Finding`：开发评测引用、涉及任务/步骤、错误类型、原因假设、置信程度、反证和目标切片。
 `DataAction`：finding、选择/补充/修复/降权等动作、目标数据差异、配方及后续数据版本/复验引用。
-正式首轮 ClosedLoop 只在冻结同池重选；新生成动作只在下一轮重新冻池后用于比较。
+正式首轮 ClosedLoop 只在冻结同池重选；新增外部来源或修复只在下一轮重新冻池后用于比较。
 状态 `OPEN -> ACTIONED -> RETESTED -> CLOSED`，结果为改善/无变化/回退/不确定。
 
 `Claim`：精确表述、证据层级、全部输入/运行/相反证据引用、成本、限制、重跑入口。
@@ -176,8 +195,9 @@ runtime_ref, checkpoint_ref, log_ref, cost_ref, status`。`status` 包含成功�
 
 ## Publication Invariants
 
-1. 所有已发布成员均能反查来源、任务、尝试、质量决策和用途；指标从规范明细重算。
-2. 事件调用关联唯一、顺序完整；不完整中断只进入相应用途，不能冒充合格示范。
+1. 所有已发布成员均能反查外部来源、上游记录/消息、修复父链、训练准入决定和用途；可执行
+   task/attempt 仅在存在时作为附加引用。指标从规范明细重算。
+2. 外部消息、工具调用/返回和答案的关联可审计；缺必要上下文或目标映射的记录不能冒充合格示范。
 3. 初始资源和隐藏参考严格分离；每轮可见上下文与实际请求一致。
 4. 同来源/模板派生/重复组不跨训练、开发、test；BENCHMARK_ONLY 不参与学习和评测。
 5. 未知验证与奖励不填 0，奖励更新不改原证据，读取日志与实际重执行分开。

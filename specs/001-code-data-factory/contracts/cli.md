@@ -1,6 +1,6 @@
 # CLI Contracts
 
-**Version**: 2.0.0 | **Status**: planned；以下命令是实现目标，当前仓库没有可执行 `cdf`。
+**Version**: 2.1.0 | **Status**: 命令骨架已存在；外部训练数据流实现待 T105–T108。
 CLI 指命令行界面，`cdf` 为本项目命令名；`uv run` 为 Python 项目运行方式。
 命令仅包装现成数据/训练组件和项目业务规则，不实现通用调度、模型服务或外部工具平台。
 
@@ -14,19 +14,20 @@ artifact_refs, counts, warnings, errors`。日志走标准错误，结构化结�
 缺失；4 执行基础设施失败；5 用户取消；6 哈希/逻辑不一致；7 超预算；8 质量/证据/兼容门禁未通过。
 轨迹 FAIL 是任务结果，不能一律当命令内部异常；质量命令是否以 8 退出由其验收门槛决定。
 
-路径 `configs/...` 是实现阶段创建的版本化配置；下面所有命令尚未实现。
+路径 `configs/...` 是版本化配置。2.1 的训练主线不调用 `trajectory collect`：外部来源审计、导入、
+构建、发布和导出在没有本地交互环境或模型生成调用时可独立运行。
 
 ## Data Production Commands
 
 | 命令及主要参数 | 产物/行为 | 门禁 |
 |---|---|---|
-| `cdf source audit --manifest <path>` | 来源、许可、字段、记录数、可执行依赖、拒绝原因 | 治理不通过不能进入正式池 |
+| `cdf source audit --manifest <path>` | 外部来源版本、许可、分片哈希、字段/工具定义、记录数、准入候选与拒绝原因 | 来源审计不签发训练准入或执行 PASS |
 | `cdf task build --config <path>` | 独立任务、初始资源、真值、来源/模板组和切分登记 | 先分组再生成变体；缺初始条件不能标可执行 |
-| `cdf trajectory import --source <path> --adapter <name>` | 原始到规范事件映射、歧义隔离 | 历史身份不能变成当前策略采样 |
+| `cdf trajectory import --source <path> --adapter <name>` | 外部原始消息/调用/返回/答案到规范示范映射、歧义隔离、修复父链 | 历史身份不能变成当前策略采样或本项目执行结果 |
 | `cdf trajectory collect --tasks <manifest> --config <collection-config> --execution-config <path>` | 调用 smolagents、完整实际尝试、费用 | 运行前环境/预算门禁；隐藏参考不对模型可见 |
-| `cdf data build --input <manifest> --config <path> --backend local\|ray` | 校验、去重、切分、质量/覆盖、增量草稿 | 同一冻结语义；每次拒绝/修复有证据 |
+| `cdf data build --input <manifest> --config <path> --backend local\|ray` | 外部示范准入、去重、切分、质量/覆盖、增量草稿 | 同一冻结语义；每次拒绝/待复核/修复有证据；禁用本项目采样成员 |
 | `cdf data build --input <manifest> --config <path> --backend ray --resume <run-id>` | 按已提交输入/分区恢复 | 不重复发布，不把恢复运行当原运行从未失败 |
-| `cdf dataset publish --draft <path>` | 不可变成员、质量/成本/数据卡与双向谱系 | 合格来源、切分、数据及哈希完整 |
+| `cdf dataset publish --draft <path>` | 外部合格成员、质量/成本/数据卡与双向谱系 | 上游消息/修复链/准入、切分、数据及哈希完整；不要求环境重放 |
 | `cdf dataset export-sft --dataset <manifest> --config <path>` | 训练视图、目标片段、loss-mask 审计 | 排除观察/用户损失，保留模型控制词元；失败原池不变 |
 | `cdf source revoke --source-id <id> --reason <text>` | 撤销台账、受影响版本/实验/结论 | 不清除必要非敏感审计，不继续分发失效内容 |
 

@@ -1,6 +1,13 @@
 # Artifact Contracts
 
-**Version**: 2.0.0 | **Status**: planned；与 [data-model.md](../data-model.md) 共用实体语义。
+**Version**: 2.1.0 | **Status**: 2.1 外部训练数据产物语义；运行时实现待 T105–T108。
+
+## 2.1 External Training Publication
+
+正式训练发布只读取冻结的外部原始分片、规范化外部示范、训练准入决定、修复父链与切分登记。
+本项目 `TaskPackage`、交互 attempt、验证器结果、固定动作和模型采样记录不得作为训练成员，也不是
+外部发布的必需输入。训练准入、可重放性、结果/奖励证据及在线采样资格分别存表；缺后面三者不能
+伪造，但不能以此覆盖独立的外部训练准入决定。
 
 ## Encoding and Compatibility
 
@@ -15,11 +22,11 @@ YAML（配置格式）先解析成规范内容后计算哈希，注释不影响�
 | 目录 | 必需产物 | 发布前检查 |
 |---|---|---|
 | `data/raw/<source-id>/` | `source_manifest.json`、许可及原始分片引用 | 版本、哈希、来源/用途明确 |
-| `data/normalized/<build-id>/` | `tasks.parquet`、`attempts.parquet`、`events.parquet`、`contexts.parquet`、`decisions.parquet`、`dependencies.parquet`、`split_registry.parquet` | 外键、调用关联、上下文、原始记录对账 |
+| `data/normalized/<build-id>/` | `external_demonstrations.parquet`、`eligibility_decisions.parquet`、`repairs.parquet`、`decisions.parquet`、`split_registry.parquet`；可执行分支另存 tasks/attempts/events | 外键、上游消息/调用关联、修复父链、原始记录对账 |
 | `artifacts/interactions/<attempt-id>/` | `attempt.json`、`events.parquet`、`artifact_index.json`、引用的模型输入/输出与工具结果 | 预算、所有终态、不可变封存；不完整尾部显式标记 |
 | `artifacts/verifications/<verification-id>/` | `verification.json`、`checks.parquet`、`evidence_manifest.json`、`reward.json`（若请求评分） | 独立证据、验证器身份、未知奖励为空 |
-| `data/releases/<dataset-id>/` | `dataset_manifest.json`、`membership.parquet`、`recipe.json`、`quality_report.json`、`diversity_report.json`、`cost_report.json`、`data_card.md`、`lineage_index.json` | 成员可追溯、切分/污染通过、内容不可变 |
-| `data/exports/<view-id>/` | `export_manifest.json`、`training_examples.parquet`、`target_mapping.parquet`、`loss_mask_audit.json` | 每个训练片段能反查 attempt/消息，词元预算可计算 |
+| `data/releases/<dataset-id>/` | `dataset_manifest.json`、`membership.parquet`、`recipe.json`、`quality_report.json`、`diversity_report.json`、`cost_report.json`、`data_card.md`、`lineage_index.json` | 成员可追溯到外部消息和准入/修复证据，切分/污染通过、内容不可变 |
+| `data/exports/<view-id>/` | `export_manifest.json`、`training_examples.parquet`、`target_mapping.parquet`、`loss_mask_audit.json` | 每个训练片段能反查 external demonstration/上游消息/准入决定，词元预算可计算 |
 | `artifacts/compatibility/<receipt-id>/` | `compatibility_receipt.json`、`checks.parquet`、`run_refs.json`、`dependency_manifest.json` | 接口模拟、真实采样、长程与恢复能力分别列状态 |
 | `artifacts/data-runs/<run-id>/` | `pipeline_run.json`、`operator_metrics.parquet`、`retry_events.parquet`、`commit_manifest.json`、原始数据框架统计 | 处理阶段与重试完整，提交前后核对一致 |
 | `artifacts/data-benchmarks/<benchmark-id>/` | 输入清单、`scale_plan.json`、`raw_trials.parquet`、`scale_report.json`、故障注入及费用引用 | 64 GiB、真实 1/2/4 节点各 5 次；复制身份隔离 |
@@ -32,11 +39,11 @@ YAML（配置格式）先解析成规范内容后计算哈希，注释不影响�
 
 ## Build Input Manifest
 
-`data/build-inputs/<name>.json` 明确关联 `source_manifests`、`task_manifests`、`attempt_manifests`、
-`verification_manifests`、`split_registry_ref` 与规则版本；所有引用均带哈希。不默认从邻近目录猜测
-输入，也不只读取历史导入数据就忽略真实生成/验证。缺少初始状态的历史记录仅保留在观察层，
-只有通过治理、执行和示范质量门禁的成员能进入可导出的发布。集合中的重复引用按实体标识对账，
-不能重复计数。任务/轨迹/验证命令输出各自 manifest，构建输入清单只引用这些已有产物。
+`data/build-inputs/<name>.json` 明确关联 `source_manifests`、`external_demonstration_manifests`、
+`eligibility_manifests`、`repair_manifests`、`split_registry_ref` 与规则版本；所有引用均带哈希。
+可执行 task/attempt/verification manifests 是独立分支的可选附加输入，不能替代或自动生成训练准入。
+不默认从邻近目录猜测输入，也不调用模型、工具或环境补全外部示范。集合中的重复引用按实体标识对账，
+不能重复计数。
 
 ## Attempt and Publication Semantics
 
@@ -48,7 +55,8 @@ YAML（配置格式）先解析成规范内容后计算哈希，注释不影响�
   过程计数，不与最终状态相加。
 - 增量与全量均读取同一已冻切分登记簿。新近重复边连接既有训练/测试对象时，记录冲突并阻断受
   影响发布；不能在全量重建时重新抽签分配集合。
-- 历史轨迹无环境/策略资料时允许保存 null，但不能通过对应执行/训练消费门禁。
+- 外部示范无环境/策略资料时允许保存 null；其重放与在线采样消费资格为不支持/未知，但训练发布
+  只按独立准入规则决定。
 
 ## SFT Export Contract
 
@@ -61,8 +69,9 @@ SFT 指监督微调。导出含模型期望的工具定义、完整必要消息�
 
 ## Quality and Sparse Reward Accounting
 
-至少报告：原始记录、独立任务、实际尝试、可执行任务、已验证轨迹、合格示范、重复/泄漏、未知/
-不稳定验证、各终态、来源/模板/难度/依赖深度/长度/恢复切片、处理前后配比。
+至少报告：外部原始/规范/合格/发布示范、独立上游任务/派生数、拒绝/待复核/修复、重复/泄漏、
+来源/模板/依赖深度/长度/能力切片、处理前后配比、有效训练词元与来源获取/治理/复核成本。可执行
+任务、实际尝试、验证轨迹和奖励为独立分支统计，不混入训练成员或训练成本分母。
 
 奖励可计算率 = 已知奖励尝试数 / 请求奖励的全部尝试数。
 全零任务比例只在“至少一次已知奖励且所有尝试的奖励均已知”的任务中计算，分母单列；存在未知

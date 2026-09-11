@@ -1,10 +1,10 @@
 # Specification Quality Checklist: Agent 工具调用轨迹数据工厂
 
-**Purpose**: 审查规格 2.0 的需求完整性；勾选只表示文档质量通过，不表示功能、实验或数据规模已完成。
-**Created**: 2026-09-08
+**Purpose**: 审查规格 2.1 的需求完整性；勾选只表示文档质量通过，不表示功能、实验或数据规模已完成。
+**Created**: 2026-09-08 | **Revised**: 2026-09-11
 **Feature**: [spec.md](../spec.md)
 
-## Content Quality
+## 2.0 Legacy Review (not evidence for 2.1 implementation)
 
 - [x] 无非必要实现细节；组件和接口选择集中于 plan/research/contracts，Linux 为用户明确运行约束。
 - [x] 聚焦数据生产、质量、分布式处理、治理、交付、反馈与归因价值。
@@ -37,6 +37,14 @@
 - [x] 首版真实采样即保留真实词元；模型输出控制/结束词元按冻结模板训练。
 - [x] 旧 tasks 已由 2.0 任务清单替换，data-model/contracts/quickstart/research 同属新版；任务勾选不继承旧编号。
 - [x] 优先使用现成开源能力；详细职位映射保留本地，公开资料只陈述工程职责。
+
+## 2.1 External-Data Migration Review
+
+- [x] 正式训练流明确为外部已有示范，且本地任务、固定动作、评测和模型采样均被排除。
+- [x] 训练准入、可重放性、结果/奖励证据与在线采样资格有独立语义，不以统一 PASS 代替。
+- [x] 外部发布可在无本地环境和无模型生成调用时独立完成，缺准入证据时失败关闭。
+- [x] 扩量依据外部实际保留率、覆盖和有效词元；没有自行采样补量路径。
+- [x] T103–T108 在 T045–T047 前置，旧任务和旧检查项不被重标为新版真实发布证据。
 
 ## Review Notes
 
