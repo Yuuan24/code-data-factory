@@ -13,6 +13,21 @@ These rules apply to every planning, implementation, experiment, and review task
   formal results through the documented feasibility and fairness gate; use the same method for every treatment and
   control run.
 
+## Large Download Efficiency Gate
+
+For a model, container image, dataset, package set, or other transfer expected to take more than five minutes, do not
+start the full download immediately. First compare the available official source, approved mirrors, existing cache,
+resume support, checksum/revision availability, and the target disk; choose and state the path with the best expected
+completion time. Put reusable large assets on the data disk rather than the system disk when the environment provides
+one.
+
+Measure the transfer rate during an initial observation window and at least every five minutes thereafter. Record the
+source, bytes transferred, elapsed time, and observed rate in the task evidence or private decision record when the
+transfer is material. If two consecutive observations materially miss the pre-download expectation, or a verified
+alternative is faster, pause or resume from the better source; do not leave a low-speed transfer running unattended.
+Keep valid partial downloads for resume where possible, and verify the final revision/checksum before treating the
+asset as available. Do not report a cached, partial, or unverified artifact as a completed download.
+
 ## Required Context Before Work
 
 Before starting a task, read the relevant requirements in:
