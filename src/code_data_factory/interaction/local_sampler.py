@@ -120,7 +120,7 @@ def _build_trainer(*, model: Any, tokenizer: Any, factory: Any, output_dir: Path
     args = GRPOConfig(
         output_dir=output_dir.as_posix(),
         report_to="none",
-        per_device_train_batch_size=1,
+        per_device_train_batch_size=2,
         num_generations=2,
         max_completion_length=max_completion_tokens,
         max_steps=1,
