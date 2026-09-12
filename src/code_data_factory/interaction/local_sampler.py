@@ -101,6 +101,8 @@ def _load_model(profile: dict[str, str]) -> tuple[Any, Any, Any]:
     if not torch.cuda.is_available():
         raise LocalSamplerError("local sampling requires a CUDA-visible GPU")
     tokenizer = AutoTokenizer.from_pretrained(profile["model_id"], revision=profile["tokenizer_revision"])
+    if not getattr(tokenizer, "response_template", None):
+        tokenizer.response_template = "<|im_start|>assistant\n"
     model: Any = AutoModelForCausalLM.from_pretrained(
         profile["model_id"],
         revision=profile["model_revision"],
