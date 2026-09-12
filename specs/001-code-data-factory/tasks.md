@@ -154,20 +154,20 @@ T103–T108 是本次新增、尚未执行的工作。原研究中的 Toucan 审
 
 ### Tests
 
-- [ ] T049 [US6] 在 `tests/contract/test_training_consumer.py`、`tests/integration/test_long_horizon.py` 声明真实词元/输出标记、缺字段拒绝、未知奖励、32/128 步和不可恢复环境的预期行为，替身与真实运行标记分离。（依赖：T048、T108）
+- [X] T049 [US6] 在 `tests/contract/test_training_consumer.py`、`tests/integration/test_long_horizon.py` 声明真实词元/输出标记、缺字段拒绝、未知奖励、32/128 步和不可恢复环境的预期行为，替身与真实运行标记分离。（依赖：T048、T108）
 
 ### Implementation
 
-- [ ] T050 [US6] 在 `src/code_data_factory/interaction/checkpoints.py` 实现仅受控只读语料/会话工作区的状态快照与恢复，记录随机状态、父尝试和分支点；缺能力返回 unsupported，不把日志回看当恢复。（依赖：T049）
-- [ ] T051 [US6] 在 `tests/fixtures/long_horizon/`、`configs/execution/long-horizon.yaml` 构建 32/128 步确定性案例，含取值依赖、大观察引用、截断前后可见输入和一次摘要替换；不训练摘要模型。（依赖：T050）
-- [ ] T052 [US6] 在 `src/code_data_factory/interaction/trl_adapter.py`、`configs/execution/trl-tools.yaml` 适配 TRL 环境工厂，复用 reset/四个工具/验证器；辅助和评分方法保持私有，优先沿用上游循环，必要扩展只按已证明接口缺口补采样回调。（依赖：T051）
-- [ ] T053 [US6] 在 `src/code_data_factory/interaction/sampling_records.py` 定义消费 profile、SamplingAttachment 与 CompatibilityReceipt，直接保存上游真实词元和输出 mask/策略身份；长度不等、伪身份、历史重编码或不支持的上下文重写必须拒绝。（依赖：T052）
-- [ ] T054 [US6] 在 `src/code_data_factory/verification/rescore.py`、`tests/fixtures/sparse-rewards/`、`configs/quality/reward-terminal-v2.yaml` 实现固定证据重评分与按任务/尝试的奖励分布报告，两个版本差异可为零但须解释，不引入自动密集奖励。（依赖：T053）
-- [ ] T055 [US6] 在 `src/code_data_factory/cli.py` 接入 `compatibility check` 三模式及 `reward rescore`，回执按接口替身、真实采样、长程/恢复逐项记录，缺真实运行不签发笼统兼容成功。（依赖：T054）
-- [ ] T056 [US6] 执行两入口固定动作、32/128 步存读、上下文改写、受控恢复/不支持拒绝及四类稀疏奖励重评分，保存 `artifacts/compatibility/contract/`、`artifacts/compatibility/long-horizon/`，包括状态/哈希/词元关联检查。（依赖：T055）
-- [ ] T057 [US6] 在 `configs/experiments/model-candidates.yaml`、`artifacts/compatibility/model-profile.json` 固定 Qwen3-8B 首选与 Qwen3-4B 事前备选顺序及实际 revision/模板/思考模式，完成推理/词元通道资源探针；不声称 SFT 已可训练，费用接 T010。（依赖：T012、T103）
-- [ ] T058 [US6] 用 T057 模型在验证分支合格环境完成至少两个任务各两次真实训练器采样，保存 `artifacts/compatibility/sampling/`，核对实际输入输出词元、mask、版本、成本及未调用优化器；不能用成功脚本代替真实模型失败轨迹，探针输出不进入正式 SFT 池。（依赖：T056、T057）
-- [ ] T059 [US6] 汇总 SC-011–013 至 `artifacts/checkpoints/us6.json` 并更新本机私有决策记录（不提交），注明后续 RL 仅增加算法/预算附件，真实长程能力与 RL 参数更新尚未验证。（依赖：T058）
+- [X] T050 [US6] 在 `src/code_data_factory/interaction/checkpoints.py` 实现仅受控只读语料/会话工作区的状态快照与恢复，记录随机状态、父尝试和分支点；缺能力返回 unsupported，不把日志回看当恢复。（依赖：T049）
+- [X] T051 [US6] 在 `tests/fixtures/long_horizon/`、`configs/execution/long-horizon.yaml` 构建 32/128 步确定性案例，含取值依赖、大观察引用、截断前后可见输入和一次摘要替换；不训练摘要模型。（依赖：T050）
+- [X] T052 [US6] 在 `src/code_data_factory/interaction/trl_adapter.py`、`configs/execution/trl-tools.yaml` 适配 TRL 环境工厂，复用 reset/四个工具/验证器；辅助和评分方法保持私有，优先沿用上游循环，必要扩展只按已证明接口缺口补采样回调。（依赖：T051）
+- [X] T053 [US6] 在 `src/code_data_factory/interaction/sampling_records.py` 定义消费 profile、SamplingAttachment 与 CompatibilityReceipt，直接保存上游真实词元和输出 mask/策略身份；长度不等、伪身份、历史重编码或不支持的上下文重写必须拒绝。（依赖：T052）
+- [X] T054 [US6] 在 `src/code_data_factory/verification/rescore.py`、`tests/fixtures/sparse-rewards/`、`configs/quality/reward-terminal-v2.yaml` 实现固定证据重评分与按任务/尝试的奖励分布报告，两个版本差异可为零但须解释，不引入自动密集奖励。（依赖：T053）
+- [X] T055 [US6] 在 `src/code_data_factory/cli.py` 接入 `compatibility check` 三模式及 `reward rescore`，回执按接口替身、真实采样、长程/恢复逐项记录，缺真实运行不签发笼统兼容成功。（依赖：T054）
+- [X] T056 [US6] 执行两入口固定动作、32/128 步存读、上下文改写、受控恢复/不支持拒绝及四类稀疏奖励重评分，保存 `artifacts/compatibility/contract/`、`artifacts/compatibility/long-horizon/`，包括状态/哈希/词元关联检查。（依赖：T055）
+- [X] T057 [US6] 在 `configs/experiments/model-candidates.yaml`、`artifacts/compatibility/model-profile.json` 固定 Qwen3-8B 首选与 Qwen3-4B 事前备选顺序及实际 revision/模板/思考模式，完成推理/词元通道资源探针；不声称 SFT 已可训练，费用接 T010。（依赖：T012、T103）
+- [X] T058 [US6] 用 T057 模型在验证分支合格环境完成至少两个任务各两次真实训练器采样，保存 `artifacts/compatibility/sampling/`，核对实际输入输出词元、mask、版本、成本及未调用优化器；不能用成功脚本代替真实模型失败轨迹，探针输出不进入正式 SFT 池。（依赖：T056、T057）
+- [X] T059 [US6] 汇总 SC-011–013 至 `artifacts/checkpoints/us6.json` 并更新本机私有决策记录（不提交），注明后续 RL 仅增加算法/预算附件，真实长程能力与 RL 参数更新尚未验证。（依赖：T058）
 
 **Checkpoint**: 首版强制扩展验收完成；未取得真实采样、恢复或长程证据的项保持未完成。
 
