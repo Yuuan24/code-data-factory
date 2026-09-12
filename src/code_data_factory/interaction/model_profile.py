@@ -109,12 +109,14 @@ def probe_local_model(*, candidates_path: Path, output_path: Path) -> dict[str, 
         add_generation_prompt=True,
         enable_thinking=False,
         return_tensors="pt",
-    )).to("cuda:0")
-    if rendered.shape[-1] > candidates.max_input_tokens:
+    ))
+    input_ids = rendered["input_ids"] if isinstance(rendered, dict) else rendered
+    input_ids = input_ids.to("cuda:0")
+    if input_ids.shape[-1] > candidates.max_input_tokens:
         raise ModelProfileError("frozen token probe exceeds its configured input limit")
     with torch.inference_mode():
-        generated: Any = model.generate(rendered, do_sample=False, max_new_tokens=candidates.max_new_tokens)
-    output_ids = generated[0, rendered.shape[-1] :].tolist()
+        generated: Any = model.generate(input_ids, do_sample=False, max_new_tokens=candidates.max_new_tokens)
+    output_ids = generated[0, input_ids.shape[-1] :].tolist()
     free_bytes, total_bytes = torch.cuda.mem_get_info(0)
     receipt: dict[str, object] = {
         "kind": "local-model-profile",
@@ -138,9 +140,9 @@ def probe_local_model(*, candidates_path: Path, output_path: Path) -> dict[str, 
             "probe_seconds": round(time.monotonic() - started, 6),
         },
         "token_channel_probe": {
-            "input_token_ids": rendered[0].tolist(),
+            "input_token_ids": input_ids[0].tolist(),
             "output_token_ids": output_ids,
-            "input_token_count": int(rendered.shape[-1]),
+            "input_token_count": int(input_ids.shape[-1]),
             "output_token_count": len(output_ids),
         },
         "evidence_level": "SOFTWARE_VALIDATED",
