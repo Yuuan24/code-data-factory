@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
 CONTRACT_MAJOR = 2
-CONTRACT_VERSION = "2.0.0"
+CONTRACT_VERSION = "2.1.0"
 
 
 def _is_current_contract(value: str) -> str:
@@ -78,6 +78,14 @@ class SourceStatus(StrEnum):
     INVALIDATED = "INVALIDATED"
 
 
+class ReplayCapability(StrEnum):
+    """Whether a source demonstration can be replayed in its original environment."""
+
+    SUPPORTED = "SUPPORTED"
+    UNSUPPORTED = "UNSUPPORTED"
+    UNKNOWN = "UNKNOWN"
+
+
 class SourceSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -109,6 +117,51 @@ class SourceRecord(BaseModel):
     association_origin: str | None = None
 
     _contract_version = field_validator("contract_version")(_is_current_contract)
+
+
+class ExternalDemonstration(BaseModel):
+    """An existing upstream demonstration with independently governed SFT admission."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    contract_version: str = CONTRACT_VERSION
+    demonstration_id: str = Field(min_length=1)
+    source_record_id: str = Field(min_length=1)
+    upstream_task_ref: ArtifactRef
+    upstream_tool_bundle_ref: ArtifactRef
+    message_refs: list[ArtifactRef] = Field(min_length=1)
+    call_result_refs: list[ArtifactRef] = Field(default_factory=list)
+    answer_ref: ArtifactRef
+    upstream_synthetic_status: str | None = None
+    parent_demonstration_id: str | None = None
+    repair_rule_ref: ArtifactRef | None = None
+    eligibility_decision_ref: ArtifactRef | None = None
+    replay_capability: ReplayCapability = ReplayCapability.UNKNOWN
+    result_evidence_ref: ArtifactRef | None = None
+    reward_evidence_ref: ArtifactRef | None = None
+    usage_scope: UsageScope
+    source_origin: str = Field(
+        pattern=r"^(PUBLIC_ORIGINAL|DERIVED|PROJECT_SAMPLING|MODEL_GENERATION)$"
+    )
+
+    _contract_version = field_validator("contract_version")(_is_current_contract)
+
+    @model_validator(mode="after")
+    def external_material_is_complete_and_repair_is_immutable(self) -> ExternalDemonstration:
+        visible = (
+            self.upstream_task_ref,
+            self.upstream_tool_bundle_ref,
+            *self.message_refs,
+            *self.call_result_refs,
+            self.answer_ref,
+        )
+        if any(ref.access_scope is not AccessScope.MODEL_VISIBLE for ref in visible):
+            raise ValueError("external task, tools, messages, results, and answer must be model-visible")
+        if (self.parent_demonstration_id is None) != (self.repair_rule_ref is None):
+            raise ValueError("a repaired demonstration needs both parent_demonstration_id and repair_rule_ref")
+        if self.parent_demonstration_id == self.demonstration_id:
+            raise ValueError("a repaired demonstration must have a distinct parent")
+        return self
 
 
 class CapabilityState(StrEnum):

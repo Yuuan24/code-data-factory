@@ -19,6 +19,12 @@ def _write_source(path: Path) -> None:
             [
                 {
                     "id": "unique",
+                    "tools": [
+                        {
+                            "name": "read_document",
+                            "parameters": {"type": "object"},
+                        }
+                    ],
                     "messages": [
                         {"role": "user", "content": "Find the length."},
                         {
@@ -41,6 +47,7 @@ def _write_source(path: Path) -> None:
                 },
                 {
                     "id": "ambiguous",
+                    "tools": [],
                     "messages": [
                         {"role": "tool", "content": "orphan result"},
                     ],
@@ -72,6 +79,7 @@ def test_import_never_executes_source_text(tmp_path: Path) -> None:
             [
                 {
                     "id": "unsafe",
+                    "tools": [],
                     "messages": [
                         {"role": "user", "content": "__import__('os').system('false')"},
                         {"role": "assistant", "content": "plain text only"},
@@ -88,13 +96,14 @@ def test_import_never_executes_source_text(tmp_path: Path) -> None:
     assert imported.records[0].origin_kind == "PUBLIC_ORIGINAL"
 
 
-def test_import_keeps_missing_environment_in_historical_only(tmp_path: Path) -> None:
+def test_import_keeps_historical_execution_evidence_outside_external_candidate_scope(tmp_path: Path) -> None:
     source = tmp_path / "missing-environment.json"
     source.write_text(
         json.dumps(
             [
                 {
                     "id": "missing-environment",
+                    "tools": [],
                     "messages": [
                         {"role": "user", "content": "look up a fact"},
                         {"role": "assistant", "content": "answer"},
@@ -107,7 +116,9 @@ def test_import_keeps_missing_environment_in_historical_only(tmp_path: Path) -> 
 
     imported = import_toucan_records(source, snapshot_id="toucan-test", producer_run_id="run-1")
 
-    assert imported.records[0].usage_scope == "HISTORICAL_ONLY"
+    assert imported.records[0].usage_scope == "TRAIN"
+    assert imported.demonstrations[0].usage_scope.value == "TRAIN"
+    assert imported.demonstrations[0].replay_capability.value == "UNSUPPORTED"
     assert imported.trajectories[0].attempt.actor_kind.value == "HISTORICAL_IMPORT"
     assert imported.trajectories[0].attempt.policy_ref is None
 
@@ -126,6 +137,7 @@ def test_import_reads_parquet_history_without_evaluating_message_text(tmp_path: 
                         ]
                     )
                 ],
+                "tools": [json.dumps([])],
             }
         ),
         source,
@@ -146,4 +158,29 @@ def test_import_writes_consumable_manifests_without_raw_message_payload(tmp_path
 
     assert all(path.is_file() for path in paths.values())
     assert "Find the length" not in paths["source_records"].read_text(encoding="utf-8")
+    assert json.loads(paths["external_demonstrations"].read_text(encoding="utf-8"))["external_demonstrations"][0]["usage_scope"] == "TRAIN"
     assert json.loads(paths["attempts"].read_text(encoding="utf-8"))["attempts"][0]["actor_kind"] == "HISTORICAL_IMPORT"
+
+
+def test_import_requires_an_explicit_upstream_tool_definition(tmp_path: Path) -> None:
+    source = tmp_path / "missing-tools.json"
+    source.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "missing-tools",
+                    "messages": [
+                        {"role": "user", "content": "look up a fact"},
+                        {"role": "assistant", "content": "answer"},
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    imported = import_toucan_records(source, snapshot_id="toucan-test", producer_run_id="run-1")
+
+    assert imported.records == []
+    assert imported.demonstrations == []
+    assert imported.quarantine[0].reason == "MISSING_TOOL_DEFINITION"

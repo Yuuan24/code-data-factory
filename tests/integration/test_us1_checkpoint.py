@@ -5,7 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from code_data_factory.checkpoints.us1 import run_us1_software_checkpoint
+from code_data_factory.checkpoints.us1 import (
+    run_external_migration_checkpoint,
+    run_us1_software_checkpoint,
+)
 
 
 def test_us1_checkpoint_rebuilds_fixture_boundaries_and_writes_receipt(tmp_path: Path) -> None:
@@ -51,6 +54,31 @@ def test_us1_checkpoint_rejects_empty_evidence_placeholders(tmp_path: Path) -> N
             equivalence_manifest=equivalence,
             task_config=Path("configs/tasks/pilot.yaml"),
         )
+
+
+def test_external_migration_checkpoint_stays_software_validated_without_real_source_data(
+    tmp_path: Path,
+) -> None:
+    build = tmp_path / "build.json"
+    release = tmp_path / "release.json"
+    export = tmp_path / "export.json"
+    build.write_text(
+        '{"member_kind":"EXTERNAL_DEMONSTRATION","accepted_count":1,"raw_external_demonstration_count":1}',
+        encoding="utf-8",
+    )
+    release.write_text('{"member_kind":"EXTERNAL_DEMONSTRATION","member_count":1}', encoding="utf-8")
+    export.write_text('{"source_external_demonstration_count":1}', encoding="utf-8")
+
+    receipt = run_external_migration_checkpoint(
+        output_path=tmp_path / "external-migration.json",
+        build_receipt=build,
+        release_manifest=release,
+        export_audit=export,
+    )
+
+    assert receipt["evidence_level"] == "SOFTWARE_VALIDATED"
+    assert receipt["real_external_delivery"] is False
+    assert receipt["checks"]["no_execution_attempt_required"] is True
 
 
 def test_us1_checkpoint_rejects_a_review_summary_without_a_bound_queue(tmp_path: Path) -> None:

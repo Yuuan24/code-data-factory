@@ -7,7 +7,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .tasks import ArtifactRef
+from .tasks import ArtifactRef, ReplayCapability
 
 
 class VerificationStatus(StrEnum):
@@ -21,6 +21,30 @@ class Outcome(StrEnum):
     PASS = "PASS"
     FAIL = "FAIL"
     UNKNOWN = "UNKNOWN"
+
+
+class EligibilityAction(StrEnum):
+    """A versioned external-SFT admission result, independent of execution."""
+
+    ACCEPT = "ACCEPT"
+    REJECT = "REJECT"
+    QUARANTINE = "QUARANTINE"
+
+
+class EligibilityDecision(BaseModel):
+    """A training-admission decision for one immutable external demonstration."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    decision_id: str = Field(min_length=1)
+    demonstration_id: str = Field(min_length=1)
+    policy_version: str = Field(min_length=1)
+    action: EligibilityAction
+    reason_codes: tuple[str, ...] = Field(min_length=1)
+    evidence_refs: list[ArtifactRef] = Field(default_factory=list)
+    review_checks: tuple[str, ...] = Field(default_factory=tuple)
+    replay_capability: ReplayCapability
+    upstream_synthetic_status: str | None = None
 
 
 class VerificationRecord(BaseModel):

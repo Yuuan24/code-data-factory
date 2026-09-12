@@ -11,6 +11,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes
+from code_data_factory.processing.quality import EXTERNAL_PUBLICATION_REVIEW_CHECKS
 
 
 class ExportError(ValueError):
@@ -29,7 +30,8 @@ class ChatTokenizer(Protocol):
 
 @dataclass(frozen=True)
 class SftExample:
-    attempt_id: str
+    attempt_id: str | None
+    demonstration_id: str | None
     task_id: str
     messages: list[dict[str, Any]]
     input_ids: list[int]
@@ -95,6 +97,26 @@ def export_sft_examples(
     examples: list[SftExample] = []
     mappings: list[dict[str, Any]] = []
     for attempt in attempts:
+        demonstration_id = attempt.get("demonstration_id")
+        if demonstration_id is not None:
+            if not isinstance(demonstration_id, str) or not demonstration_id:
+                raise ExportError("external demonstration needs a stable demonstration_id")
+            if attempt.get("source_origin") not in {"PUBLIC_ORIGINAL", "DERIVED"}:
+                raise ExportError("project sampling or model generation cannot be exported as external SFT")
+            if attempt.get("eligibility_action") != "ACCEPT":
+                raise ExportError("external SFT export requires an accepted eligibility decision")
+            if not isinstance(attempt.get("review_checks"), list) or not EXTERNAL_PUBLICATION_REVIEW_CHECKS <= set(attempt["review_checks"]):
+                raise ExportError("external SFT export requires source, split, and sensitive review")
+            if not isinstance(attempt.get("upstream_message_refs"), list) or not attempt["upstream_message_refs"]:
+                raise ExportError("external SFT export requires upstream message lineage")
+        attempt_id = None if demonstration_id is not None else attempt.get("attempt_id")
+        if attempt_id is not None and (not isinstance(attempt_id, str) or not attempt_id):
+            raise ExportError("attempt export needs a stable attempt_id")
+        if demonstration_id is None and attempt_id is None:
+            raise ExportError("SFT export needs an attempt or external demonstration identity")
+        task_id = attempt.get("task_id", demonstration_id)
+        if not isinstance(task_id, str) or not task_id:
+            raise ExportError("SFT export needs a task or external demonstration identity")
         messages = attempt.get("messages")
         if not isinstance(messages, list) or not messages:
             raise ExportError("attempt needs complete messages")
@@ -129,7 +151,8 @@ def export_sft_examples(
                 controls += max(0, len(encoded) - len(content_ids))
             mappings.append(
                 {
-                    "attempt_id": str(attempt["attempt_id"]),
+                    "attempt_id": attempt_id,
+                    "demonstration_id": demonstration_id,
                     "message_index": message_index,
                     "role": role,
                     "target_token_count": sum(mask),
@@ -140,8 +163,9 @@ def export_sft_examples(
             raise ExportError("chat template token boundaries are not reproducible")
         examples.append(
             SftExample(
-                attempt_id=str(attempt["attempt_id"]),
-                task_id=str(attempt["task_id"]),
+                attempt_id=attempt_id,
+                demonstration_id=demonstration_id,
+                task_id=task_id,
                 messages=messages,
                 input_ids=input_ids,
                 loss_mask=loss_mask,
@@ -156,6 +180,7 @@ def export_sft_examples(
             [
                 {
                     "attempt_id": example.attempt_id,
+                    "demonstration_id": example.demonstration_id,
                     "task_id": example.task_id,
                     "messages_json": json.dumps(example.messages, sort_keys=True),
                     "input_ids": example.input_ids,
@@ -175,11 +200,31 @@ def export_sft_examples(
         "tokenizer_revision": tokenizer_revision,
         "template_version": template_version,
         "example_count": len(examples),
-        "source_attempt_count": len(attempts),
+        "source_attempt_count": sum(item.get("demonstration_id") is None for item in attempts),
+        "source_external_demonstration_count": sum(
+            item.get("demonstration_id") is not None for item in attempts
+        ),
         "source_digest": sha256_bytes(canonical_json_bytes(attempts)),
         "examples": [asdict(example) for example in examples],
     }
     (output_dir / "loss_mask_audit.json").write_bytes(canonical_json_bytes(audit))
+    (output_dir / "export_manifest.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "status": "EXPORTED",
+                "member_kind": (
+                    "EXTERNAL_DEMONSTRATION"
+                    if audit["source_external_demonstration_count"]
+                    else "EXECUTION_ATTEMPT"
+                ),
+                "example_count": len(examples),
+                "source_digest": audit["source_digest"],
+                "tokenizer_name": tokenizer_name,
+                "tokenizer_revision": tokenizer_revision,
+                "template_version": template_version,
+            }
+        )
+    )
     return SftExportResult(examples=examples, audit=audit)
 
 

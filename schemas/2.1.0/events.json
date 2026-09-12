@@ -1,0 +1,4 @@
+{
+  "name": "events",
+  "schema": "event_id: string\nattempt_id: string\nseq: int64\nevent_type: string\nmodel_call_id: string\ntool_call_id: string\nstatus: string"
+}

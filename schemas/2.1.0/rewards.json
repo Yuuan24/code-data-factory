@@ -1,0 +1,4 @@
+{
+  "name": "rewards",
+  "schema": "reward_record_id: string\nattempt_id: string\nverification_id: string\navailability: string\ntotal_reward: double"
+}

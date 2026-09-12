@@ -12,7 +12,11 @@ from code_data_factory.datasets.build_input import BuildInput
 from code_data_factory.processing.backends import process_events
 from code_data_factory.processing.commit import BuildIdentity, commit_build
 from code_data_factory.processing.dedup import deduplicate_tasks, write_dedup_evidence
-from code_data_factory.processing.quality import decide_quality, write_quality_ledger
+from code_data_factory.processing.quality import (
+    EXTERNAL_PUBLICATION_REVIEW_CHECKS,
+    decide_quality,
+    write_quality_ledger,
+)
 
 
 @dataclass(frozen=True)
@@ -29,12 +33,137 @@ def _object(path: Path, field: str) -> list[dict[str, Any]]:
     return [item for item in value[field] if isinstance(item, dict)]
 
 
+def _build_external_draft(
+    *, build_input: BuildInput, output_dir: Path, backend: str, run_id: str
+) -> DraftBuild:
+    """Build a candidate pool solely from frozen external demonstrations and reviews."""
+
+    demonstrations = [
+        item
+        for path in build_input.external_demonstration_manifests
+        for item in _object(path, "external_demonstrations")
+    ]
+    decisions = [
+        item
+        for path in build_input.eligibility_manifests
+        for item in _object(path, "eligibility_decisions")
+    ]
+    materials = [
+        item
+        for path in build_input.external_material_manifests
+        for item in _object(path, "external_material")
+    ]
+    decision_by_demo = {str(item.get("demonstration_id")): item for item in decisions}
+    material_by_demo = {str(item.get("demonstration_id")): item for item in materials}
+    rows: list[dict[str, Any]] = []
+    rejected_count = 0
+    for demonstration in demonstrations:
+        demonstration_id = str(demonstration.get("demonstration_id", ""))
+        decision = decision_by_demo.get(demonstration_id)
+        if decision is None:
+            raise ValueError(f"external demonstration {demonstration_id} lacks an eligibility decision")
+        material = material_by_demo.get(demonstration_id)
+        if material is None or not isinstance(material.get("messages"), list) or not material["messages"]:
+            raise ValueError(f"external demonstration {demonstration_id} lacks frozen message material")
+        if decision.get("action") != "ACCEPT":
+            rejected_count += 1
+            continue
+        review_checks = decision.get("review_checks")
+        if not isinstance(review_checks, list) or not EXTERNAL_PUBLICATION_REVIEW_CHECKS <= set(review_checks):
+            raise ValueError(
+                f"external demonstration {demonstration_id} lacks required source, split, or sensitive review"
+            )
+        if demonstration.get("source_origin") not in {"PUBLIC_ORIGINAL", "DERIVED"}:
+            raise ValueError("project sampling or model generation cannot enter an external candidate pool")
+        message_refs = demonstration.get("message_refs")
+        if not isinstance(message_refs, list) or not message_refs:
+            raise ValueError(f"external demonstration {demonstration_id} lacks message lineage")
+        source_record_id = demonstration.get("source_record_id")
+        if not isinstance(source_record_id, str) or not source_record_id:
+            raise ValueError(f"external demonstration {demonstration_id} lacks source lineage")
+        decision_id = decision.get("decision_id")
+        if not isinstance(decision_id, str) or not decision_id:
+            raise ValueError(f"external demonstration {demonstration_id} has an invalid eligibility decision")
+        rows.append(
+            {
+                "demonstration_id": demonstration_id,
+                "source_record_id": source_record_id,
+                "source_record_ids": [source_record_id],
+                "usage_scope": "TRAIN",
+                "eligibility_decision_id": decision_id,
+                "eligibility_action": "ACCEPT",
+                "upstream_message_refs": [
+                    ref["uri"] if isinstance(ref, dict) and isinstance(ref.get("uri"), str) else ref
+                    for ref in message_refs
+                ],
+                "source_origin": demonstration["source_origin"],
+                "replay_capability": demonstration.get("replay_capability", "UNKNOWN"),
+                "parent_demonstration_id": demonstration.get("parent_demonstration_id"),
+                "messages": material["messages"],
+                "review_checks": sorted(review_checks),
+            }
+        )
+    if not rows:
+        raise ValueError("external candidate build has no accepted external demonstrations")
+    if len({row["demonstration_id"] for row in rows}) != len(rows):
+        raise ValueError("external candidate build contains duplicate demonstration_id values")
+    # The external route deliberately has no local tool/event execution.  Calling
+    # the shared backend with an empty event stream preserves the same declared
+    # local/Ray processing boundary without inventing interaction records.
+    process_events([], backend=backend, observation_inline_limit=4096)
+    input_hash = sha256_bytes(canonical_json_bytes(build_input.content_hashes))
+    commit = commit_build(
+        rows,
+        destination=output_dir / "snapshots",
+        run_id=run_id,
+        previous=None,
+        fail_at=None,
+        build_identity=BuildIdentity(
+            input_manifest_hash=input_hash,
+            rule_version=build_input.rule_version,
+            split_registry_hash=sha256_file(build_input.split_registry),
+        ),
+        primary_key="demonstration_id",
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "membership.json").write_bytes(canonical_json_bytes(list(commit.rows)))
+    (output_dir / "eligibility_decisions.json").write_bytes(
+        canonical_json_bytes({"eligibility_decisions": decisions})
+    )
+    (output_dir / "build_receipt.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "run_id": run_id,
+                "backend": backend,
+                "evidence_level": "SOFTWARE_VALIDATED",
+                "input_manifest_hash": input_hash,
+                "logical_content_hash": commit.logical_content_hash,
+                "member_kind": "EXTERNAL_DEMONSTRATION",
+                "member_count": len(rows),
+                "raw_external_demonstration_count": len(demonstrations),
+                "frozen_material_count": len(materials),
+                "accepted_count": len(rows),
+                "rejected_or_quarantined_count": rejected_count,
+                "train_eligible_count": len(rows),
+                "source_manifest_count": len(build_input.source_manifests),
+                "recovery_event": commit.recovery_event,
+            }
+        )
+    )
+    return DraftBuild(output_dir, commit.logical_content_hash, len(rows))
+
+
 def build_draft(*, build_input: BuildInput, output_dir: Path, backend: str, run_id: str) -> DraftBuild:
     """Join task/attempt/verifier streams and commit an immutable, resumable draft.
 
     Scripted fixtures remain explicitly SOFTWARE_VALIDATED and cannot later be
     promoted to a TRAIN release by this build.
     """
+
+    if build_input.external_demonstration_manifests:
+        return _build_external_draft(
+            build_input=build_input, output_dir=output_dir, backend=backend, run_id=run_id
+        )
 
     tasks = [item for path in build_input.task_manifests for item in _object(path, "tasks")]
     attempts = [item for path in build_input.attempt_manifests for item in _object(path, "attempts")]

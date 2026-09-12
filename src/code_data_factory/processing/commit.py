@@ -47,12 +47,14 @@ def _write_atomic(path: Path, content: bytes) -> None:
     os.replace(temporary, path)
 
 
-def _existing_rows(destination: Path) -> dict[str, dict[str, Any]]:
+def _existing_rows(destination: Path, *, primary_key: str) -> dict[str, dict[str, Any]]:
     registry = destination / "registry.json"
     if not registry.is_file():
         return {}
     stored = json.loads(registry.read_text(encoding="utf-8"))
-    return {str(row["task_id"]): row for row in stored["rows"]}
+    if stored.get("primary_key", "task_id") != primary_key:
+        raise CommitError("existing registry uses a different immutable member identity")
+    return {str(row[primary_key]): row for row in stored["rows"]}
 
 
 def _existing_identity(destination: Path) -> BuildIdentity | None:
@@ -79,20 +81,25 @@ def commit_build(
     previous: CommitResult | None = None,
     fail_at: str | None,
     build_identity: BuildIdentity = BuildIdentity(),
+    primary_key: str = "task_id",
 ) -> CommitResult:
     """Publish a content-addressed snapshot; retries are idempotent and mutations fail."""
 
-    existing = {row["task_id"]: row for row in previous.rows} if previous else _existing_rows(destination)
+    existing = (
+        {str(row[primary_key]): row for row in previous.rows}
+        if previous
+        else _existing_rows(destination, primary_key=primary_key)
+    )
     existing_identity = None if previous else _existing_identity(destination)
     if existing_identity is not None and existing_identity != build_identity:
         raise CommitError("immutable build identity conflicts with existing registry")
     for row in rows:
-        task_id = str(row["task_id"])
-        if task_id in existing and canonical_json_bytes(existing[task_id]) != canonical_json_bytes(row):
-            raise CommitError(f"immutable task identity conflicts for {task_id}")
-        existing[task_id] = row
+        member_id = str(row[primary_key])
+        if member_id in existing and canonical_json_bytes(existing[member_id]) != canonical_json_bytes(row):
+            raise CommitError(f"immutable member identity conflicts for {member_id}")
+        existing[member_id] = row
     merged = tuple(existing[key] for key in sorted(existing))
-    content_hash = logical_content_hash(merged, "task_id")
+    content_hash = logical_content_hash(merged, primary_key)
     if fail_at == "precommit":
         raise CommitError("injected precommit failure")
 
@@ -109,6 +116,7 @@ def commit_build(
                     "run_id": run_id,
                     "logical_content_hash": content_hash,
                     "row_count": len(merged),
+                    "primary_key": primary_key,
                     "build_identity": asdict(build_identity),
                 }
             ),
@@ -127,6 +135,7 @@ def commit_build(
             canonical_json_bytes(
                 {
                     "rows": list(merged),
+                    "primary_key": primary_key,
                     "build_identity": asdict(build_identity),
                     "recovery_event": recovery_event,
                 }

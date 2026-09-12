@@ -1,0 +1,4 @@
+{
+  "name": "tasks",
+  "schema": "contract_version: string\ntask_id: string\ntask_revision: string\nsource_record_ids: list<item: string>\n  child 0, item: string\ninstruction_ref: struct<artifact_id: string, uri: string, sha256: string, byte_size: int64, media_type: string, produ (... 41 chars omitted)\n  child 0, artifact_id: string\n  child 1, uri: string\n  child 2, sha256: string\n  child 3, byte_size: int64\n  child 4, media_type: string\n  child 5, producer_run_id: string\n  child 6, access_scope: string\nusage_scope: string\nsplit_group_id: string\nstatus: string"
+}

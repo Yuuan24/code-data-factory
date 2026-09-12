@@ -1,0 +1,4 @@
+{
+  "name": "eligibility_decisions",
+  "schema": "decision_id: string\ndemonstration_id: string\npolicy_version: string\naction: string\nreason_codes: list<item: string>\n  child 0, item: string\nevidence_refs: list<item: struct<artifact_id: string, uri: string, sha256: string, byte_size: int64, media_type: st (... 53 chars omitted)\n  child 0, item: struct<artifact_id: string, uri: string, sha256: string, byte_size: int64, media_type: string, produ (... 41 chars omitted)\n      child 0, artifact_id: string\n      child 1, uri: string\n      child 2, sha256: string\n      child 3, byte_size: int64\n      child 4, media_type: string\n      child 5, producer_run_id: string\n      child 6, access_scope: string\nreview_checks: list<item: string>\n  child 0, item: string\nreplay_capability: string"
+}

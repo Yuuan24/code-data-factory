@@ -40,6 +40,7 @@ def _fixture_history() -> list[dict[str, Any]]:
     return [
         {
             "id": "unique",
+            "tools": [{"name": "read_document", "parameters": {"type": "object"}}],
             "messages": [
                 {"role": "user", "content": "Find the declared conversion."},
                 {
@@ -56,7 +57,7 @@ def _fixture_history() -> list[dict[str, Any]]:
                 {"role": "assistant", "content": "100<eos>"},
             ],
         },
-        {"id": "orphan", "messages": [{"role": "tool", "content": "unlinked"}]},
+        {"id": "orphan", "tools": [], "messages": [{"role": "tool", "content": "unlinked"}]},
     ]
 
 
@@ -70,6 +71,62 @@ def _required_object(path: Path, *, label: str, required_keys: set[str]) -> dict
     if not isinstance(value, dict) or not required_keys <= set(value):
         raise ValueError(f"US1 checkpoint {label} lacks required evidence fields")
     return value
+
+
+def run_external_migration_checkpoint(
+    *,
+    output_path: Path,
+    build_receipt: Path,
+    release_manifest: Path,
+    export_audit: Path,
+) -> dict[str, Any]:
+    """Record software migration evidence without pretending a real source was published."""
+
+    build = _required_object(
+        build_receipt,
+        label="external build receipt",
+        required_keys={"member_kind", "accepted_count", "raw_external_demonstration_count"},
+    )
+    release = _required_object(
+        release_manifest,
+        label="external release manifest",
+        required_keys={"member_kind", "member_count"},
+    )
+    export = _required_object(
+        export_audit,
+        label="external export audit",
+        required_keys={"source_external_demonstration_count"},
+    )
+    checks = {
+        "external_member_identity_preserved": build["member_kind"] == "EXTERNAL_DEMONSTRATION"
+        and release["member_kind"] == "EXTERNAL_DEMONSTRATION",
+        "admission_count_reaches_release": build["accepted_count"] == release["member_count"],
+        "export_reads_external_demonstrations": export["source_external_demonstration_count"]
+        == release["member_count"],
+        "no_execution_attempt_required": "attempt_count" not in build
+        and "verification_count" not in build,
+    }
+    if not all(checks.values()):
+        raise ValueError("external migration checkpoint facts are inconsistent")
+    receipt = {
+        "checkpoint": "EXTERNAL_MIGRATION_SOFTWARE",
+        "created_at": datetime.now(UTC).isoformat(),
+        "evidence_level": "SOFTWARE_VALIDATED",
+        "real_external_delivery": False,
+        "checks": checks,
+        "input_hashes": {
+            "build_receipt": sha256_file(build_receipt),
+            "release_manifest": sha256_file(release_manifest),
+            "export_audit": sha256_file(export_audit),
+        },
+        "limitations": [
+            "This receipt verifies migration software only; it does not prove a real external source, review, candidate pool, or release.",
+            "SC-016 through SC-018 remain open until T045 through T047 use real frozen external inputs.",
+        ],
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(canonical_json_bytes(receipt))
+    return receipt
 
 
 def run_us1_software_checkpoint(
@@ -175,8 +232,8 @@ def run_us1_software_checkpoint(
         checks = {
             "historical_import_preserved_raw_failure": len(imported.records) == 1
             and len(imported.quarantine) == 1,
-            "historical_import_remains_non_executable": imported.records[0].usage_scope
-            == "HISTORICAL_ONLY",
+            "external_candidate_is_not_execution_evidence": len(imported.demonstrations) == 1
+            and imported.demonstrations[0].replay_capability.value == "UNSUPPORTED",
             "pilot_rebuild_has_one_hundred_drafts": len(build.tasks) == 100
             and all(task.status.value == "DRAFT" for task in build.tasks),
             "sft_mask_has_model_output_only": exported.examples[0].role_loss_counts["tool"] == 0
@@ -208,7 +265,7 @@ def run_us1_software_checkpoint(
             "task_config": sha256_file(task_config),
         },
         "limitations": [
-            "Historical Toucan data remains HISTORICAL_ONLY and was not published.",
+            "The fixture external candidate has no independent eligibility review and was not published.",
             "The 100 pilot tasks are DRAFT and were not executed or independently verified.",
             "No training-eligible release, model execution, training result, or model-value claim is evidenced.",
         ],

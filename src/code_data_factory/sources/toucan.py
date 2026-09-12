@@ -16,7 +16,13 @@ from typing import Any, cast
 import pyarrow.parquet as pq
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes
-from code_data_factory.contracts.tasks import AccessScope, ArtifactRef
+from code_data_factory.contracts.tasks import (
+    AccessScope,
+    ArtifactRef,
+    ExternalDemonstration,
+    ReplayCapability,
+    UsageScope,
+)
 from code_data_factory.contracts.trajectory import (
     ActorKind,
     Attempt,
@@ -33,6 +39,8 @@ class AssociationAmbiguity(StrEnum):
     ORPHAN_TOOL_RESULT = "ORPHAN_TOOL_RESULT"
     DUPLICATE_TOOL_CALL = "DUPLICATE_TOOL_CALL"
     INVALID_MESSAGE = "INVALID_MESSAGE"
+    MISSING_TOOL_DEFINITION = "MISSING_TOOL_DEFINITION"
+    MISSING_ANSWER = "MISSING_ANSWER"
 
 
 @dataclass(frozen=True)
@@ -55,6 +63,8 @@ class QuarantinedRecord:
 @dataclass(frozen=True)
 class ImportedToucan:
     records: list[ImportedSourceRecord]
+    demonstrations: list[ExternalDemonstration]
+    materials: list[dict[str, Any]]
     trajectories: list[Trajectory]
     quarantine: list[QuarantinedRecord]
 
@@ -114,6 +124,8 @@ def import_toucan_records(
     raw = _records_from_source(source)
 
     records: list[ImportedSourceRecord] = []
+    demonstrations: list[ExternalDemonstration] = []
+    materials: list[dict[str, Any]] = []
     trajectories: list[Trajectory] = []
     quarantine: list[QuarantinedRecord] = []
     now = datetime.now(UTC)
@@ -125,6 +137,20 @@ def import_toucan_records(
         messages = _messages(row.get("messages"))
         if messages is None:
             quarantine.append(QuarantinedRecord(upstream_id=upstream_id, reason=AssociationAmbiguity.INVALID_MESSAGE))
+            continue
+        tools = row.get("tools")
+        if isinstance(tools, str):
+            try:
+                tools = json.loads(tools)
+            except json.JSONDecodeError:
+                tools = None
+        if not isinstance(tools, (list, dict)):
+            quarantine.append(
+                QuarantinedRecord(
+                    upstream_id=upstream_id,
+                    reason=AssociationAmbiguity.MISSING_TOOL_DEFINITION.value,
+                )
+            )
             continue
         calls: set[str] = set()
         ambiguous: AssociationAmbiguity | None = None
@@ -174,6 +200,22 @@ def import_toucan_records(
         if ambiguous is not None:
             quarantine.append(QuarantinedRecord(upstream_id=upstream_id, reason=ambiguous.value))
             continue
+        answer = next(
+            (
+                message
+                for message in reversed(messages)
+                if message.get("role") == "assistant" and not message.get("tool_calls")
+            ),
+            None,
+        )
+        if answer is None:
+            quarantine.append(
+                QuarantinedRecord(
+                    upstream_id=upstream_id,
+                    reason=AssociationAmbiguity.MISSING_ANSWER.value,
+                )
+            )
+            continue
         raw_ref = _ref(
             f"{snapshot_id}-{upstream_id}-raw", row, AccessScope.INTERNAL, producer_run_id
         )
@@ -184,9 +226,60 @@ def import_toucan_records(
                 upstream_id=upstream_id,
                 origin_kind="PUBLIC_ORIGINAL",
                 association_origin="inferred_unique",
-                usage_scope="HISTORICAL_ONLY",
+                usage_scope="TRAIN",
                 raw_ref=raw_ref,
             )
+        )
+        message_refs = [
+            _ref(
+                f"{snapshot_id}-{upstream_id}-message-{seq}",
+                message,
+                AccessScope.MODEL_VISIBLE,
+                producer_run_id,
+            )
+            for seq, message in enumerate(messages)
+        ]
+        demonstrations.append(
+            ExternalDemonstration(
+                demonstration_id=f"{snapshot_id}:{upstream_id}",
+                source_record_id=f"{snapshot_id}:{upstream_id}",
+                upstream_task_ref=_ref(
+                    f"{snapshot_id}-{upstream_id}-task",
+                    row.get("task", messages[0]),
+                    AccessScope.MODEL_VISIBLE,
+                    producer_run_id,
+                ),
+                upstream_tool_bundle_ref=_ref(
+                    f"{snapshot_id}-{upstream_id}-tools",
+                    tools,
+                    AccessScope.MODEL_VISIBLE,
+                    producer_run_id,
+                ),
+                message_refs=message_refs,
+                call_result_refs=[
+                    message_refs[seq]
+                    for seq, message in enumerate(messages)
+                    if message.get("role") == "tool"
+                ],
+                answer_ref=_ref(
+                    f"{snapshot_id}-{upstream_id}-answer",
+                    answer,
+                    AccessScope.MODEL_VISIBLE,
+                    producer_run_id,
+                ),
+                upstream_synthetic_status=(
+                    str(row["status"]) if row.get("status") is not None else None
+                ),
+                replay_capability=ReplayCapability.UNSUPPORTED,
+                usage_scope=UsageScope.TRAIN,
+                source_origin="PUBLIC_ORIGINAL",
+            )
+        )
+        materials.append(
+            {
+                "demonstration_id": f"{snapshot_id}:{upstream_id}",
+                "messages": messages,
+            }
         )
         attempt = Attempt(
             attempt_id=attempt_id,
@@ -203,7 +296,13 @@ def import_toucan_records(
             state=AttemptState.SEALED,
         )
         trajectories.append(Trajectory(attempt=attempt, events=events))
-    return ImportedToucan(records=records, trajectories=trajectories, quarantine=quarantine)
+    return ImportedToucan(
+        records=records,
+        demonstrations=demonstrations,
+        materials=materials,
+        trajectories=trajectories,
+        quarantine=quarantine,
+    )
 
 
 def write_import_result(result: ImportedToucan, *, output_dir: Path) -> dict[str, Path]:
@@ -211,6 +310,8 @@ def write_import_result(result: ImportedToucan, *, output_dir: Path) -> dict[str
 
     output_dir.mkdir(parents=True, exist_ok=True)
     records_path = output_dir / "source_records.json"
+    demonstrations_path = output_dir / "external_demonstrations.json"
+    material_path = output_dir / "external_material.json"
     attempts_path = output_dir / "attempt_manifest.json"
     events_path = output_dir / "event_manifest.json"
     quarantine_path = output_dir / "quarantine.json"
@@ -218,6 +319,18 @@ def write_import_result(result: ImportedToucan, *, output_dir: Path) -> dict[str
         canonical_json_bytes(
             {"source_records": [record.__dict__ | {"raw_ref": record.raw_ref.model_dump(mode="json")} for record in result.records]}
         )
+    )
+    demonstrations_path.write_bytes(
+        canonical_json_bytes(
+            {
+                "external_demonstrations": [
+                    item.model_dump(mode="json") for item in result.demonstrations
+                ]
+            }
+        )
+    )
+    material_path.write_bytes(
+        canonical_json_bytes({"external_material": result.materials})
     )
     attempts_path.write_bytes(
         canonical_json_bytes(
@@ -234,6 +347,8 @@ def write_import_result(result: ImportedToucan, *, output_dir: Path) -> dict[str
     )
     return {
         "source_records": records_path,
+        "external_demonstrations": demonstrations_path,
+        "external_material": material_path,
         "attempts": attempts_path,
         "events": events_path,
         "quarantine": quarantine_path,

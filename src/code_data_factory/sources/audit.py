@@ -33,6 +33,8 @@ class AuditedSource:
     content_hash_status: str
     sensitive_check_status: str
     actual_tool_scope: tuple[str, ...] | None
+    required_upstream_fields: tuple[str, ...]
+    required_field_status: str
     warnings: tuple[str, ...]
 
 
@@ -193,6 +195,13 @@ def audit_sources(manifest_path: Path, *, output_dir: Path, fetch_remote: bool) 
         local_path = source.get("local_path")
         count: int | None = None
         actual_tools: tuple[str, ...] | None = None
+        declared_fields = source.get("required_upstream_fields", [])
+        if not isinstance(declared_fields, list) or not all(
+            isinstance(item, str) and item for item in declared_fields
+        ):
+            raise ValueError("required_upstream_fields must be a list of non-empty names")
+        required_fields = tuple(sorted(declared_fields))
+        required_field_status = "NOT_DECLARED" if not required_fields else "UNAVAILABLE_NO_LOCAL_SHARD"
         sensitive_status = "UNAVAILABLE_NO_RECORD_SAMPLE"
         warnings: tuple[str, ...] = ()
         dependency_status = "NOT_REQUIRED"
@@ -220,6 +229,10 @@ def audit_sources(manifest_path: Path, *, output_dir: Path, fetch_remote: bool) 
                 parquet = pq.ParquetFile(local)
                 count = parquet.metadata.num_rows
                 names = set(parquet.schema_arrow.names)
+                if required_fields:
+                    required_field_status = (
+                        "AVAILABLE" if set(required_fields) <= names else "MISSING"
+                    )
                 sensitive_names = {"email", "phone", "password", "token", "address", "user_id"} & names
                 free_text = {"question", "messages"} & names
                 sensitive_status = (
@@ -238,6 +251,16 @@ def audit_sources(manifest_path: Path, *, output_dir: Path, fetch_remote: bool) 
                 if not isinstance(records, list):
                     raise ValueError(f"local source {source['source_id']} must be a JSON array")
                 count = len(records)
+                if required_fields:
+                    names = {
+                        str(name)
+                        for record in records
+                        if isinstance(record, dict)
+                        for name in record
+                    }
+                    required_field_status = (
+                        "AVAILABLE" if set(required_fields) <= names else "MISSING"
+                    )
                 actual_tools = tuple(sorted({str(call.get("name")) for record in records if isinstance(record, dict) for message in record.get("messages", []) if isinstance(message, dict) for call in message.get("tool_calls", []) if isinstance(call, dict) and isinstance(call.get("name"), str)}))
                 sensitive_status = "NO_DECLARED_SENSITIVE_FIELD_NAMES"
             if fetch_remote:
@@ -271,6 +294,8 @@ def audit_sources(manifest_path: Path, *, output_dir: Path, fetch_remote: bool) 
                 content_hash_status=content_hash_status,
                 sensitive_check_status=sensitive_status,
                 actual_tool_scope=actual_tools,
+                required_upstream_fields=required_fields,
+                required_field_status=required_field_status,
                 warnings=warnings,
             )
         )

@@ -64,3 +64,104 @@ def test_data_build_resume_rejects_a_completed_receipt_with_different_identity(
         == EXIT_INPUT_ERROR
     )
     assert "--resume conflicts" in json.loads(capsys.readouterr().out)["errors"][0]
+
+
+def test_external_build_and_publish_need_no_execution_environment(
+    tmp_path: Path, capsys: object
+) -> None:
+    for name, value in {
+        "source.json": {"source_records": [{"source_record_id": "source-1"}]},
+        "demonstrations.json": {
+            "external_demonstrations": [
+                {
+                    "demonstration_id": "demo-1",
+                    "source_record_id": "source-1",
+                    "message_refs": [{"uri": "messages/demo-1.json"}],
+                    "source_origin": "PUBLIC_ORIGINAL",
+                    "replay_capability": "UNSUPPORTED",
+                }
+            ]
+        },
+        "eligibility.json": {
+            "eligibility_decisions": [
+                {
+                    "decision_id": "eligibility-demo-1",
+                    "demonstration_id": "demo-1",
+                    "action": "ACCEPT",
+                    "review_checks": [
+                        "source_identity",
+                        "upstream_tool_definition",
+                        "message_context",
+                        "target_answer_mapping",
+                        "split_registration",
+                        "sensitive_review",
+                    ],
+                }
+            ]
+        },
+        "materials.json": {
+            "external_material": [
+                {
+                    "demonstration_id": "demo-1",
+                    "messages": [
+                        {"role": "user", "content": "question"},
+                        {"role": "assistant", "content": "answer"},
+                    ],
+                }
+            ]
+        },
+        "split.json": {"policy": "external-split-v1"},
+    }.items():
+        (tmp_path / name).write_text(json.dumps(value), encoding="utf-8")
+    (tmp_path / "input.json").write_text(
+        json.dumps(
+            {
+                "source_manifests": ["source.json"],
+                "external_demonstration_manifests": ["demonstrations.json"],
+                "external_material_manifests": ["materials.json"],
+                "eligibility_manifests": ["eligibility.json"],
+                "split_registry_ref": "split.json",
+                "rule_version": "external-sft-v1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    candidate = tmp_path / "candidate"
+    assert (
+        main(
+            [
+                "--json",
+                "--output-dir",
+                str(candidate),
+                "--input",
+                str(tmp_path / "input.json"),
+                "--backend",
+                "local",
+                "data",
+                "build",
+            ]
+        )
+        == 0
+    )
+    assert json.loads(capsys.readouterr().out)["counts"]["members"] == 1
+    policy = tmp_path / "external-sft.yaml"
+    policy.write_text("policy_version: external-sft-v1\n", encoding="utf-8")
+    assert (
+        main(
+            [
+                "--json",
+                "--output-dir",
+                str(tmp_path / "releases"),
+                "--draft",
+                str(candidate / "membership.json"),
+                "--config",
+                str(policy),
+                "dataset",
+                "publish",
+            ]
+        )
+        == 0
+    )
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["counts"] == {"members": 1}
+    assert (tmp_path / "releases" / "external" / "dataset_manifest.json").is_file()

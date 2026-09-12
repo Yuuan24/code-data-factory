@@ -72,6 +72,7 @@ def test_source_audit_reads_parquet_tool_scope_without_preserving_records(tmp_pa
                         "source_kind": "history",
                         "local_path": str(fixture),
                         "expected_sha256": sha256_file(fixture),
+                        "required_upstream_fields": ["messages", "target_tools"],
                     }
                 ]
             }
@@ -84,6 +85,7 @@ def test_source_audit_reads_parquet_tool_scope_without_preserving_records(tmp_pa
     assert source.record_count == 1
     assert source.actual_tool_scope == ("calculate", "read_document")
     assert source.sensitive_check_status == "POTENTIAL_FREE_TEXT_REVIEW_REQUIRED"
+    assert source.required_field_status == "AVAILABLE"
 
 
 def test_document_freeze_writes_content_addressed_snapshot(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

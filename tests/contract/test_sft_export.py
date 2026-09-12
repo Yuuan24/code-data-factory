@@ -86,3 +86,75 @@ def test_sft_export_rejects_unknown_error_position_without_mutating_source(tmp_p
         )
 
     assert source[0]["unknown_action_location"] is True
+
+
+def test_external_sft_export_requires_admitted_external_material_not_execution_pass(tmp_path: Path) -> None:
+    external = _attempt("unused") | {
+        "demonstration_id": "demo-1",
+        "source_origin": "PUBLIC_ORIGINAL",
+        "eligibility_action": "ACCEPT",
+        "upstream_message_refs": ["messages/demo-1.json"],
+        "review_checks": [
+            "source_identity",
+            "upstream_tool_definition",
+            "message_context",
+            "target_answer_mapping",
+            "split_registration",
+            "sensitive_review",
+        ],
+    }
+    external.pop("attempt_id")
+    external.pop("task_id")
+
+    result = export_sft_examples(
+        [external],
+        output_dir=tmp_path,
+        tokenizer_name="test-byte-tokenizer",
+        tokenizer_revision="v1",
+        template_version="tool-chat-v1",
+        tokenizer=FakeChatTokenizer(),
+    )
+
+    assert result.examples[0].demonstration_id == "demo-1"
+    assert result.examples[0].attempt_id is None
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"source_origin": "PROJECT_SAMPLING"},
+        {"source_origin": "MODEL_GENERATION"},
+        {"eligibility_action": "REJECT"},
+        {"upstream_message_refs": []},
+    ],
+)
+def test_external_sft_export_rejects_non_external_or_unadmitted_input(
+    tmp_path: Path, overrides: dict[str, object]
+) -> None:
+    external = _attempt("unused") | {
+        "demonstration_id": "demo-1",
+        "source_origin": "PUBLIC_ORIGINAL",
+        "eligibility_action": "ACCEPT",
+        "upstream_message_refs": ["messages/demo-1.json"],
+        "review_checks": [
+            "source_identity",
+            "upstream_tool_definition",
+            "message_context",
+            "target_answer_mapping",
+            "split_registration",
+            "sensitive_review",
+        ],
+    }
+    external.pop("attempt_id")
+    external.pop("task_id")
+    external.update(overrides)
+
+    with pytest.raises(ExportError):
+        export_sft_examples(
+            [external],
+            output_dir=tmp_path,
+            tokenizer_name="test-byte-tokenizer",
+            tokenizer_revision="v1",
+            template_version="tool-chat-v1",
+            tokenizer=FakeChatTokenizer(),
+        )

@@ -1,0 +1,20 @@
+policy_version: external-sft-v1
+member_kind: EXTERNAL_DEMONSTRATION
+admission:
+  required:
+    - source_identity
+    - upstream_tool_definition
+    - message_context
+    - target_answer_mapping
+    - split_registration
+    - sensitive_review
+  replay_is_independent: true
+  result_and_reward_are_independent: true
+prohibited_ingress:
+  - PROJECT_SAMPLING
+  - MODEL_GENERATION
+  - MODEL_EVALUATION
+publication:
+  frozen_inputs_only: true
+  invoke_tools: false
+  invoke_model: false

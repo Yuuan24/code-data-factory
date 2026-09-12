@@ -44,3 +44,44 @@ stages:
       - src/code_data_factory/processing/quality.py
     outs:
       - data/draft/ray
+  build_external_ray:
+    cmd: >-
+      uv run --group data cdf data build
+      --input data/build-inputs/external.json
+      --backend ray
+      --output-dir data/candidates/external
+    deps:
+      - data/build-inputs/external.json
+      - configs/quality/external-sft.yaml
+      - src/code_data_factory/cli.py
+      - src/code_data_factory/datasets/build.py
+      - src/code_data_factory/datasets/build_input.py
+      - src/code_data_factory/processing/quality.py
+    outs:
+      - data/candidates/external
+  publish_external:
+    cmd: >-
+      uv run --group data cdf dataset publish
+      --draft data/candidates/external/membership.json
+      --config configs/quality/external-sft.yaml
+      --output-dir data/releases
+    deps:
+      - data/candidates/external/membership.json
+      - configs/quality/external-sft.yaml
+      - src/code_data_factory/cli.py
+      - src/code_data_factory/datasets/publish.py
+    outs:
+      - data/releases/external
+  export_external_sft:
+    cmd: >-
+      uv run --group training cdf dataset export-sft
+      --dataset data/candidates/external/membership.json
+      --config configs/experiments/export-sft.yaml
+      --output-dir data/exports/external
+    deps:
+      - data/candidates/external/membership.json
+      - configs/experiments/export-sft.yaml
+      - src/code_data_factory/cli.py
+      - src/code_data_factory/datasets/export_sft.py
+    outs:
+      - data/exports/external

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pyarrow as pa
 
-SCHEMA_VERSION = "2.0.0"
+SCHEMA_VERSION = "2.1.0"
 
 
 def contract_schemas() -> dict[str, pa.Schema]:
@@ -33,6 +33,35 @@ def contract_schemas() -> dict[str, pa.Schema]:
                 ("usage_scope", pa.string()),
                 ("split_group_id", pa.string()),
                 ("status", pa.string()),
+            ]
+        ),
+        "external_demonstrations": pa.schema(
+            [
+                ("contract_version", pa.string()),
+                ("demonstration_id", pa.string()),
+                ("source_record_id", pa.string()),
+                ("upstream_task_ref", artifact_ref),
+                ("upstream_tool_bundle_ref", artifact_ref),
+                ("message_refs", pa.list_(artifact_ref)),
+                ("call_result_refs", pa.list_(artifact_ref)),
+                ("answer_ref", artifact_ref),
+                ("parent_demonstration_id", pa.string()),
+                ("eligibility_decision_ref", artifact_ref),
+                ("replay_capability", pa.string()),
+                ("usage_scope", pa.string()),
+                ("source_origin", pa.string()),
+            ]
+        ),
+        "eligibility_decisions": pa.schema(
+            [
+                ("decision_id", pa.string()),
+                ("demonstration_id", pa.string()),
+                ("policy_version", pa.string()),
+                ("action", pa.string()),
+                ("reason_codes", pa.list_(pa.string())),
+                ("evidence_refs", pa.list_(artifact_ref)),
+                ("review_checks", pa.list_(pa.string())),
+                ("replay_capability", pa.string()),
             ]
         ),
         "attempts": pa.schema(

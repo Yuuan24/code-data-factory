@@ -12,19 +12,21 @@ def test_arrow_schemas_export_under_contract_major(tmp_path: Path) -> None:
     assert {path.stem for path in paths} == {
         "attempts",
         "contexts",
+        "eligibility_decisions",
         "events",
+        "external_demonstrations",
         "rewards",
         "tasks",
         "verifications",
     }
-    task_schema = json.loads((tmp_path / "2.0.0" / "tasks.json").read_text(encoding="utf-8"))
+    task_schema = json.loads((tmp_path / "2.1.0" / "tasks.json").read_text(encoding="utf-8"))
     assert "task_id" in task_schema["schema"]
 
 
 def test_committed_arrow_schemas_match_the_current_contract(tmp_path: Path) -> None:
     export_schemas(tmp_path)
-    committed = Path("schemas/2.0.0")
-    generated = tmp_path / "2.0.0"
+    committed = Path("schemas/2.1.0")
+    generated = tmp_path / "2.1.0"
     assert sorted(path.name for path in committed.glob("*.json")) == sorted(
         path.name for path in generated.glob("*.json")
     )

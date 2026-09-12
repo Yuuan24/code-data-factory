@@ -262,8 +262,26 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
         import_result = import_toucan_records(parsed.source, snapshot_id="toucan-import", producer_run_id=run_id)
         paths = write_import_result(import_result, output_dir=output)
         summary = output / "import_summary.json"
-        summary.write_text(json.dumps({"records": len(import_result.records), "quarantine": len(import_result.quarantine)}), encoding="utf-8")
-        return _completed(command, run_id, [summary, *paths.values()], {"records": len(import_result.records), "quarantine": len(import_result.quarantine)})
+        summary.write_text(
+            json.dumps(
+                {
+                    "records": len(import_result.records),
+                    "external_demonstrations": len(import_result.demonstrations),
+                    "quarantine": len(import_result.quarantine),
+                }
+            ),
+            encoding="utf-8",
+        )
+        return _completed(
+            command,
+            run_id,
+            [summary, *paths.values()],
+            {
+                "records": len(import_result.records),
+                "external_demonstrations": len(import_result.demonstrations),
+                "quarantine": len(import_result.quarantine),
+            },
+        )
     if parsed.command == ["data", "build"]:
         if parsed.input is None or parsed.backend is None:
             raise ValueError("data build requires --input and --backend")
@@ -292,7 +310,23 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
         members = json.loads(parsed.draft.read_text(encoding="utf-8"))
         if not isinstance(members, list):
             raise ValueError("--draft must contain a JSON member list")
-        publication = publish_dataset(dataset_id="software-draft", members=members, output_dir=output, input_manifest_hash="0" * 64, rule_version="quality-v1")
+        external = bool(members) and all("demonstration_id" in member for member in members)
+        if external and parsed.config is None:
+            raise ValueError("external dataset publish requires --config with the frozen eligibility policy")
+        rule_version = "quality-v1"
+        if parsed.config is not None:
+            config = yaml.safe_load(parsed.config.read_text(encoding="utf-8"))
+            configured_rule = config.get("policy_version") if isinstance(config, dict) else None
+            if not isinstance(configured_rule, str) or not configured_rule:
+                raise ValueError("dataset publish config requires policy_version")
+            rule_version = configured_rule
+        publication = publish_dataset(
+            dataset_id="external" if external else "software-draft",
+            members=members,
+            output_dir=output,
+            input_manifest_hash=sha256_bytes(canonical_json_bytes(members)),
+            rule_version=rule_version,
+        )
         return _completed(command, run_id, [publication.path / "dataset_manifest.json"], {"members": len(members)})
     if parsed.command == ["dataset", "export-sft"]:
         if parsed.dataset is None or parsed.config is None:

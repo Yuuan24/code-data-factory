@@ -11,7 +11,25 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes
-from code_data_factory.contracts.verification import Outcome, VerificationRecord, VerificationStatus
+from code_data_factory.contracts.tasks import ExternalDemonstration, ReplayCapability
+from code_data_factory.contracts.verification import (
+    EligibilityAction,
+    EligibilityDecision,
+    Outcome,
+    VerificationRecord,
+    VerificationStatus,
+)
+
+EXTERNAL_PUBLICATION_REVIEW_CHECKS = frozenset(
+    {
+        "source_identity",
+        "upstream_tool_definition",
+        "message_context",
+        "target_answer_mapping",
+        "split_registration",
+        "sensitive_review",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +49,121 @@ class QualityResult:
     accepted_attempt_ids: list[str]
     quarantined_attempt_ids: list[str]
     rejected_attempt_ids: list[str]
+
+
+def _eligibility_decision(
+    *,
+    demonstration_id: str,
+    policy_version: str,
+    action: EligibilityAction,
+    reason_codes: tuple[str, ...],
+    demonstration: ExternalDemonstration | None = None,
+) -> EligibilityDecision:
+    identifier = sha256_bytes(
+        canonical_json_bytes(
+            {
+                "demonstration_id": demonstration_id,
+                "policy_version": policy_version,
+                "action": action.value,
+                "reason_codes": reason_codes,
+            }
+        )
+    )
+    return EligibilityDecision(
+        decision_id=f"eligibility-{identifier[:16]}",
+        demonstration_id=demonstration_id,
+        policy_version=policy_version,
+        action=action,
+        reason_codes=reason_codes,
+        evidence_refs=[] if demonstration is None else [demonstration.upstream_task_ref],
+        review_checks=(
+            ()
+            if demonstration is None
+            else (
+                "source_identity",
+                "upstream_tool_definition",
+                "message_context",
+                "target_answer_mapping",
+            )
+        ),
+        replay_capability=(
+            demonstration.replay_capability
+            if demonstration is not None
+            else ReplayCapability.UNKNOWN
+        ),
+        upstream_synthetic_status=(
+            demonstration.upstream_synthetic_status if demonstration is not None else None
+        ),
+    )
+
+
+def assess_external_eligibility(
+    demonstration: ExternalDemonstration | dict[str, Any], *, policy_version: str
+) -> EligibilityDecision:
+    """Admit external data from immutable evidence without executing it locally."""
+
+    payload = (
+        demonstration.model_dump(mode="python")
+        if isinstance(demonstration, ExternalDemonstration)
+        else demonstration
+    )
+    demonstration_id = str(payload.get("demonstration_id", "<unknown>"))
+    if not payload.get("upstream_tool_bundle_ref"):
+        return _eligibility_decision(
+            demonstration_id=demonstration_id,
+            policy_version=policy_version,
+            action=EligibilityAction.REJECT,
+            reason_codes=("MISSING_TOOL_DEFINITION",),
+        )
+    if not payload.get("message_refs"):
+        return _eligibility_decision(
+            demonstration_id=demonstration_id,
+            policy_version=policy_version,
+            action=EligibilityAction.REJECT,
+            reason_codes=("MISSING_MESSAGE_CONTEXT",),
+        )
+    try:
+        normalized = ExternalDemonstration.model_validate(payload)
+    except ValueError:
+        return _eligibility_decision(
+            demonstration_id=demonstration_id,
+            policy_version=policy_version,
+            action=EligibilityAction.REJECT,
+            reason_codes=("MALFORMED_EXTERNAL_DEMONSTRATION",),
+        )
+    if normalized.source_origin in {"PROJECT_SAMPLING", "MODEL_GENERATION"}:
+        return _eligibility_decision(
+            demonstration_id=normalized.demonstration_id,
+            policy_version=policy_version,
+            action=EligibilityAction.REJECT,
+            reason_codes=("PROJECT_SAMPLING_INGRESS",),
+            demonstration=normalized,
+        )
+    return _eligibility_decision(
+        demonstration_id=normalized.demonstration_id,
+        policy_version=policy_version,
+        action=EligibilityAction.ACCEPT,
+        reason_codes=("COMPLETE_EXTERNAL_DEMONSTRATION",),
+        demonstration=normalized,
+    )
+
+
+def repair_external_demonstration(
+    demonstration: ExternalDemonstration,
+    *,
+    demonstration_id: str,
+    repair_rule_ref: Any,
+) -> ExternalDemonstration:
+    """Create a new deterministic repair record without changing its parent."""
+
+    return demonstration.model_copy(
+        update={
+            "demonstration_id": demonstration_id,
+            "parent_demonstration_id": demonstration.demonstration_id,
+            "repair_rule_ref": repair_rule_ref,
+            "eligibility_decision_ref": None,
+        }
+    )
 
 
 def _decision(
