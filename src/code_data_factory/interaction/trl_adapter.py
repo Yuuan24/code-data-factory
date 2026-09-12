@@ -37,25 +37,44 @@ class ToolTaskEnvironment:
         return "\nUse only the supplied tools and cite the visible document identifier."
 
     def search_documents(self, query: str) -> list[str]:
-        """Search the task's visible read-only documents for an alphanumeric query."""
+        """Search the task's visible read-only documents.
+
+        Args:
+            query: Alphanumeric text to find.
+        """
         result = self._tools.search_documents(query)
         self.calls.append({"tool": "search_documents", "arguments": {"query": query}, "result": result})
         return result
 
     def read_document(self, document_id: str) -> str:
-        """Read one visible document by its task-local identifier."""
+        """Read one visible document.
+
+        Args:
+            document_id: Task-local visible document identifier.
+        """
         result = self._workspace.read_document(document_id)
         self.calls.append({"tool": "read_document", "arguments": {"document_id": document_id}, "result": result})
         return result
 
     def calculate(self, operation: str, operands: list[str]) -> str:
-        """Apply ADD, SUBTRACT, MULTIPLY, or DIVIDE to decimal-literal operands."""
+        """Calculate with decimal-literal operands.
+
+        Args:
+            operation: ADD, SUBTRACT, MULTIPLY, or DIVIDE.
+            operands: Decimal-literal input values.
+        """
         result = self._tools.calculate(operation, operands)
         self.calls.append({"tool": "calculate", "arguments": {"operation": operation, "operands": operands}, "result": result})
         return result
 
     def convert(self, value: str, from_unit: str, to_unit: str) -> str:
-        """Convert one decimal value between compatible units."""
+        """Convert one decimal value between compatible units.
+
+        Args:
+            value: Decimal value to convert.
+            from_unit: Source unit.
+            to_unit: Compatible destination unit.
+        """
         result = self._tools.convert(value, from_unit, to_unit)
         self.calls.append(
             {

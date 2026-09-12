@@ -234,6 +234,8 @@ def run_local_sampling_probe(
                 token_ids = tokenizer.apply_chat_template(
                     prompt, tokenize=True, add_generation_prompt=True, enable_thinking=False
                 )
+                if hasattr(token_ids, "get"):
+                    token_ids = token_ids["input_ids"]
                 attachment = SamplingAttachment(
                     attempt_id=str(uuid4()),
                     task_id=task.task_id,
