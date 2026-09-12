@@ -96,7 +96,7 @@ def assert_trl_environment_factory_supported() -> None:
 
 
 def run_contract_check(*, profile_path: Path, output_dir: Path) -> dict[str, object]:
-    """Exercise the same bounded tool semantics through the trainer-entry environment."""
+    """Compare fixed direct actions with the trainer-entry environment actions."""
 
     profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
     if not isinstance(profile, dict) or profile.get("profile_version") != "trl-tools-v1":
@@ -108,9 +108,15 @@ def run_contract_check(*, profile_path: Path, output_dir: Path) -> dict[str, obj
     if tools != ["search_documents", "read_document", "calculate", "convert"]:
         raise TrlAdapterError("TRL tools profile must expose exactly the four bounded project tools")
     assert_trl_environment_factory_supported()
-    factory, environments = build_environment_factory(
-        documents={"units": "A metre contains 100 centimetres."}, workspace_root=output_dir / "workspaces"
-    )
+    documents = {"units": "A metre contains 100 centimetres."}
+    direct_tools = RestrictedTools(documents)
+    direct_observed = {
+        "search": direct_tools.search_documents("metre"),
+        "document": direct_tools.read_document("units"),
+        "calculation": direct_tools.calculate("MULTIPLY", ["2", "3"]),
+        "conversion": direct_tools.convert("1", "m", "cm"),
+    }
+    factory, environments = build_environment_factory(documents=documents, workspace_root=output_dir / "workspaces")
     environment = factory()
     environment.reset()
     observed = {
@@ -119,12 +125,18 @@ def run_contract_check(*, profile_path: Path, output_dir: Path) -> dict[str, obj
         "calculation": environment.calculate("MULTIPLY", ["2", "3"]),
         "conversion": environment.convert("1", "m", "cm"),
     }
+    if direct_observed != observed:
+        raise TrlAdapterError("direct fixed actions diverge from the trainer environment")
     receipt: dict[str, object] = {
         "kind": "trl-environment-factory-contract",
         "profile_version": profile["profile_version"],
         "runner_kind": trainer["kind"],
         "environment_instances": len(environments),
+        "direct_fixed_action_calls": len(direct_observed),
         "tool_calls": len(environment.calls),
+        "semantic_match": True,
+        "semantic_hash": _digest(observed),
+        "direct_observed": direct_observed,
         "observed": observed,
         "optimizer_updates_allowed": trainer.get("optimizer_updates_allowed"),
     }
