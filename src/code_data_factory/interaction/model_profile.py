@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -110,7 +111,7 @@ def probe_local_model(*, candidates_path: Path, output_path: Path) -> dict[str, 
         enable_thinking=False,
         return_tensors="pt",
     ))
-    input_ids = rendered["input_ids"] if isinstance(rendered, dict) else rendered
+    input_ids = rendered["input_ids"] if isinstance(rendered, Mapping) else rendered
     input_ids = input_ids.to("cuda:0")
     if input_ids.shape[-1] > candidates.max_input_tokens:
         raise ModelProfileError("frozen token probe exceeds its configured input limit")
