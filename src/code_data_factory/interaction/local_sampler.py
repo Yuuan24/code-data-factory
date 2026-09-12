@@ -121,7 +121,7 @@ def _build_trainer(*, model: Any, tokenizer: Any, factory: Any, output_dir: Path
         output_dir=output_dir.as_posix(),
         report_to="none",
         per_device_train_batch_size=1,
-        num_generations=1,
+        num_generations=2,
         max_completion_length=max_completion_tokens,
         max_steps=1,
         bf16=True,
