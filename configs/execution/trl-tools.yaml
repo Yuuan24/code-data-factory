@@ -1,0 +1,16 @@
+profile_version: trl-tools-v1
+trainer:
+  kind: TRL_GRPO_TRAINER
+  interface: environment_factory
+  optimizer_updates_allowed: false
+tools:
+  - search_documents
+  - read_document
+  - calculate
+  - convert
+facts_config: ../tasks/pilot.yaml
+sampling:
+  max_model_calls: 4
+  max_completion_tokens: 128
+  temperature: 0.0
+  top_p: 1.0

@@ -1,0 +1,7 @@
+profile_version: long-horizon-v1
+context_rewrite_policy: explicit-summary-replacement-v1
+restore_environment: controlled-session-workspace
+unsupported_restore_behavior: fail-closed
+allowed_step_counts:
+  - 32
+  - 128

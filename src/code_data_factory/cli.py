@@ -20,14 +20,21 @@ from code_data_factory.datasets.build_input import BuildInputError, load_build_i
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
 from code_data_factory.interaction.environment import check_environment
+from code_data_factory.interaction.local_sampler import LocalSamplerError, run_local_sampling_probe
 from code_data_factory.interaction.pilot import execute_fixed_actions, load_facts
 from code_data_factory.interaction.replay import inspect_manifest
+from code_data_factory.interaction.trl_adapter import (
+    TrlAdapterError,
+    run_contract_check,
+    run_fixed_long_horizon_case,
+)
 from code_data_factory.sources.audit import audit_sources, freeze_document_sources
 from code_data_factory.sources.revoke import revoke_source
 from code_data_factory.sources.toucan import import_toucan_records, write_import_result
 from code_data_factory.tasks.build import build_pilot_tasks
 from code_data_factory.tasks.splits import SplitRegistry
 from code_data_factory.verification.pilot import verify_pilot_attempts
+from code_data_factory.verification.rescore import RescoreError, rescore_fixed_evidence
 
 EXIT_INPUT_ERROR = 2
 EXIT_DEPENDENCY_ERROR = 3
@@ -78,6 +85,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--attempts", type=Path)
     parser.add_argument("--resume")
     parser.add_argument("--source-record-id")
+    parser.add_argument("--profile", type=Path)
+    parser.add_argument("--mode", choices=("contract", "sampling", "long-horizon"))
+    parser.add_argument("--evidence", type=Path)
+    parser.add_argument("--policy", type=Path)
     parser.add_argument("command", nargs="*")
     return parser
 
@@ -142,6 +153,55 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
     if parsed.dry_run:
         return CommandEnvelope(command, run_id, "VALIDATED", "UNVERIFIED", [], {}, [], [])
     output = _require_output(parsed)
+    if parsed.command == ["compatibility", "check"]:
+        if parsed.profile is None or parsed.mode is None:
+            raise ValueError("compatibility check requires --profile and --mode")
+        if parsed.mode == "contract":
+            receipt = run_contract_check(profile_path=parsed.profile, output_dir=output)
+            tool_calls = receipt.get("tool_calls")
+            if not isinstance(tool_calls, int):
+                raise ValueError("compatibility contract receipt has invalid tool-call count")
+            return _completed(command, run_id, [output / "manifest.json"], {"tool_calls": tool_calls})
+        if parsed.mode == "long-horizon":
+            cases = [
+                run_fixed_long_horizon_case(
+                    Path("tests/fixtures/long_horizon") / name,
+                    config_path=parsed.profile,
+                    output_dir=output,
+                )
+                for name in ("steps-32.json", "steps-128.json")
+            ]
+            step_counts = [case.get("step_count") for case in cases]
+            if not all(isinstance(step_count, int) for step_count in step_counts):
+                raise ValueError("long-horizon receipt has invalid step counts")
+            steps = sum(cast(int, step_count) for step_count in step_counts)
+            receipt = {"kind": "long-horizon-contract", "cases": cases}
+            (output / "manifest.json").write_bytes(canonical_json_bytes(receipt))
+            return _completed(command, run_id, [output / "manifest.json"], {"cases": len(cases), "steps": steps})
+        if parsed.input is None or parsed.tasks is None:
+            raise ValueError("sampling compatibility requires --input model-profile.json and --tasks task_manifest.json")
+        receipt = run_local_sampling_probe(
+            sampling_profile_path=parsed.profile,
+            model_profile_path=parsed.input,
+            tasks_path=parsed.tasks,
+            output_dir=output,
+        )
+        attempts = receipt.get("attempt_count")
+        if not isinstance(attempts, int):
+            raise ValueError("sampling receipt has invalid attempt count")
+        return _completed(command, run_id, [output / "manifest.json"], {"attempts": attempts})
+    if parsed.command == ["reward", "rescore"]:
+        if parsed.evidence is None or parsed.policy is None:
+            raise ValueError("reward rescore requires --evidence and --policy")
+        receipt = rescore_fixed_evidence(
+            evidence_path=parsed.evidence,
+            policy_path=parsed.policy,
+            output_dir=output,
+        )
+        counts = receipt.get("counts")
+        if not isinstance(counts, dict) or not all(isinstance(value, int) for value in counts.values()):
+            raise ValueError("reward rescore receipt has invalid counts")
+        return _completed(command, run_id, [output / "manifest.json"], cast(dict[str, int], counts))
     if parsed.command == ["environment", "check"]:
         if parsed.config is None:
             raise ValueError("environment check requires --config")
@@ -377,7 +437,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     try:
         envelope = _execute(parsed, run_id)
-    except (BuildInputError, ExportError, PublicationGateError, ValueError, FileNotFoundError, json.JSONDecodeError) as error:
+    except (
+        BuildInputError,
+        ExportError,
+        PublicationGateError,
+        LocalSamplerError,
+        RescoreError,
+        TrlAdapterError,
+        ValueError,
+        FileNotFoundError,
+        json.JSONDecodeError,
+    ) as error:
         _emit(CommandEnvelope(command, run_id, "INPUT_ERROR", "UNVERIFIED", [], {}, [], [str(error)]), parsed.json)
         return EXIT_INPUT_ERROR
     except ImportError as error:

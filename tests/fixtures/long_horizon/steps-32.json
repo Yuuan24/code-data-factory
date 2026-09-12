@@ -1,0 +1,8 @@
+{
+  "case_id": "long-steps-32",
+  "step_count": 32,
+  "document_id": "large-observation-32",
+  "document_content": "Frozen large observation reference for the 32-step dependency fixture.",
+  "rewrite_at": 16,
+  "truncate_at": 8
+}

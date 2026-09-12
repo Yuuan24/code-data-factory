@@ -1,0 +1,14 @@
+{
+  "kind": "fixed-sparse-reward-evidence",
+  "reward_policy_version": "reward-terminal-v1",
+  "records": [
+    {"attempt_id": "success-1", "task_id": "success-task-1", "end_reason": "COMPLETED", "verification_status": "VERIFIED", "outcome": "PASS", "total_reward": 1.0},
+    {"attempt_id": "success-2", "task_id": "success-task-2", "end_reason": "COMPLETED", "verification_status": "VERIFIED", "outcome": "PASS", "total_reward": 1.0},
+    {"attempt_id": "zero-1", "task_id": "zero-task-1", "end_reason": "COMPLETED", "verification_status": "VERIFIED", "outcome": "FAIL", "total_reward": 0.0},
+    {"attempt_id": "zero-2", "task_id": "zero-task-2", "end_reason": "COMPLETED", "verification_status": "VERIFIED", "outcome": "FAIL", "total_reward": 0.0},
+    {"attempt_id": "unknown-1", "task_id": "unknown-task-1", "end_reason": "ENVIRONMENT_ERROR", "verification_status": "INSUFFICIENT", "outcome": "UNKNOWN", "total_reward": null},
+    {"attempt_id": "unknown-2", "task_id": "unknown-task-2", "end_reason": "ENVIRONMENT_ERROR", "verification_status": "ERROR", "outcome": "UNKNOWN", "total_reward": null},
+    {"attempt_id": "truncated-1", "task_id": "truncated-task-1", "end_reason": "BUDGET_TRUNCATED", "verification_status": "INSUFFICIENT", "outcome": "UNKNOWN", "total_reward": null},
+    {"attempt_id": "truncated-2", "task_id": "truncated-task-2", "end_reason": "BUDGET_TRUNCATED", "verification_status": "INSUFFICIENT", "outcome": "UNKNOWN", "total_reward": null}
+  ]
+}

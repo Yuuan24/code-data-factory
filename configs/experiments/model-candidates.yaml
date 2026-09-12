@@ -1,0 +1,22 @@
+profile_version: local-sampling-model-v1
+candidate_order:
+  - qwen3-8b
+  - qwen3-4b
+candidates:
+  qwen3-8b:
+    model_id: Qwen/Qwen3-8B
+    revision: b968826d9c46dd6066d109eabc6255188de91218
+    tokenizer_revision: b968826d9c46dd6066d109eabc6255188de91218
+    thinking_mode: disabled
+    torch_dtype: bfloat16
+  qwen3-4b:
+    model_id: Qwen/Qwen3-4B
+    revision: 1cfa9a7208912126459214e8b04321603b3df60c
+    tokenizer_revision: 1cfa9a7208912126459214e8b04321603b3df60c
+    thinking_mode: disabled
+    torch_dtype: bfloat16
+probe:
+  max_new_tokens: 1
+  max_input_tokens: 256
+  require_cuda: true
+  fallback_on_resource_failure_only: true
