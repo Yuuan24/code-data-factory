@@ -117,9 +117,19 @@ def _resumed_build(output: Path, *, run_id: str, backend: str, input_manifest_ha
     ):
         raise ValueError("--resume conflicts with the completed build receipt")
     membership = output / "membership.json"
-    decisions = output / "quality_decisions.json"
+    is_external = receipt.get("member_kind") == "EXTERNAL_DEMONSTRATION"
+    decisions = (
+        output / "eligibility_decisions.json"
+        if is_external
+        else output / "quality_decisions.json"
+    )
     if not membership.is_file() or not decisions.is_file():
         raise ValueError("--resume found an incomplete completed-build receipt")
+    # External candidate manifests were added after early migration receipts.
+    # Re-run the immutable build with the same run ID to materialize this
+    # derived receipt; it never changes the committed member snapshot.
+    if is_external and not (output / "manifest.json").is_file():
+        return None
     member_count = receipt.get("member_count")
     accepted_count = receipt.get("accepted_count")
     if not isinstance(member_count, int) or not isinstance(accepted_count, int):
@@ -299,11 +309,32 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
                 return _completed(
                     command,
                     run_id,
-                    [output / "build_receipt.json", output / "membership.json", output / "quality_decisions.json"],
+                    [
+                        output / "build_receipt.json",
+                        output / "membership.json",
+                        output / "eligibility_decisions.json"
+                        if build_input.external_demonstration_manifests
+                        else output / "quality_decisions.json",
+                    ],
                     {"inputs": len(build_input.content_hashes), "members": members, "accepted": accepted},
                 )
         result = build_draft(build_input=build_input, output_dir=output, backend=parsed.backend, run_id=run_id)
-        return _completed(command, run_id, [output / "build_receipt.json", output / "membership.json", output / "quality_decisions.json"], {"inputs": len(build_input.content_hashes), "members": result.member_count})
+        decision_path = (
+            output / "eligibility_decisions.json"
+            if build_input.external_demonstration_manifests
+            else output / "quality_decisions.json"
+        )
+        return _completed(
+            command,
+            run_id,
+            [
+                output / "build_receipt.json",
+                output / "membership.json",
+                decision_path,
+                *([output / "manifest.json"] if build_input.external_demonstration_manifests else []),
+            ],
+            {"inputs": len(build_input.content_hashes), "members": result.member_count},
+        )
     if parsed.command == ["dataset", "publish"]:
         if parsed.draft is None:
             raise ValueError("dataset publish requires --draft")

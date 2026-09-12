@@ -9,7 +9,7 @@ from typing import Any
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes, sha256_file
 from code_data_factory.datasets.build_input import BuildInput
-from code_data_factory.processing.backends import process_events
+from code_data_factory.processing.backends import process_events, process_external_members
 from code_data_factory.processing.commit import BuildIdentity, commit_build
 from code_data_factory.processing.dedup import deduplicate_tasks, write_dedup_evidence
 from code_data_factory.processing.quality import (
@@ -56,18 +56,29 @@ def _build_external_draft(
     decision_by_demo = {str(item.get("demonstration_id")): item for item in decisions}
     material_by_demo = {str(item.get("demonstration_id")): item for item in materials}
     rows: list[dict[str, Any]] = []
+    pending_review_count = 0
     rejected_count = 0
+    quarantined_count = 0
+    repaired_count = 0
+    accepted_repaired_count = 0
     for demonstration in demonstrations:
         demonstration_id = str(demonstration.get("demonstration_id", ""))
         decision = decision_by_demo.get(demonstration_id)
         if decision is None:
-            raise ValueError(f"external demonstration {demonstration_id} lacks an eligibility decision")
+            pending_review_count += 1
+            continue
         material = material_by_demo.get(demonstration_id)
         if material is None or not isinstance(material.get("messages"), list) or not material["messages"]:
             raise ValueError(f"external demonstration {demonstration_id} lacks frozen message material")
-        if decision.get("action") != "ACCEPT":
+        action = decision.get("action")
+        if action == "REJECT":
             rejected_count += 1
             continue
+        if action == "QUARANTINE":
+            quarantined_count += 1
+            continue
+        if action != "ACCEPT":
+            raise ValueError(f"external demonstration {demonstration_id} has an unknown eligibility action")
         review_checks = decision.get("review_checks")
         if not isinstance(review_checks, list) or not EXTERNAL_PUBLICATION_REVIEW_CHECKS <= set(review_checks):
             raise ValueError(
@@ -75,6 +86,8 @@ def _build_external_draft(
             )
         if demonstration.get("source_origin") not in {"PUBLIC_ORIGINAL", "DERIVED"}:
             raise ValueError("project sampling or model generation cannot enter an external candidate pool")
+        if demonstration.get("parent_demonstration_id") is not None:
+            repaired_count += 1
         message_refs = demonstration.get("message_refs")
         if not isinstance(message_refs, list) or not message_refs:
             raise ValueError(f"external demonstration {demonstration_id} lacks message lineage")
@@ -103,14 +116,16 @@ def _build_external_draft(
                 "review_checks": sorted(review_checks),
             }
         )
+        if demonstration.get("parent_demonstration_id") is not None:
+            accepted_repaired_count += 1
     if not rows:
         raise ValueError("external candidate build has no accepted external demonstrations")
     if len({row["demonstration_id"] for row in rows}) != len(rows):
         raise ValueError("external candidate build contains duplicate demonstration_id values")
-    # The external route deliberately has no local tool/event execution.  Calling
-    # the shared backend with an empty event stream preserves the same declared
-    # local/Ray processing boundary without inventing interaction records.
-    process_events([], backend=backend, observation_inline_limit=4096)
+    # This transforms actual external members only. It does not create local
+    # tool/event attempts or invoke a model.
+    processed = process_external_members(rows, backend=backend)
+    rows = processed.rows
     input_hash = sha256_bytes(canonical_json_bytes(build_input.content_hashes))
     commit = commit_build(
         rows,
@@ -127,6 +142,17 @@ def _build_external_draft(
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "membership.json").write_bytes(canonical_json_bytes(list(commit.rows)))
+    (output_dir / "external_processing.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "processed_external_member_count": len(processed.rows),
+                "source_only_transform": True,
+                "model_invocation_count": 0,
+                "project_task_ingress_count": 0,
+                "project_sampling_ingress_count": 0,
+            }
+        )
+    )
     (output_dir / "eligibility_decisions.json").write_bytes(
         canonical_json_bytes({"eligibility_decisions": decisions})
     )
@@ -142,11 +168,54 @@ def _build_external_draft(
                 "member_count": len(rows),
                 "raw_external_demonstration_count": len(demonstrations),
                 "frozen_material_count": len(materials),
+                "processed_external_member_count": len(processed.rows),
                 "accepted_count": len(rows),
-                "rejected_or_quarantined_count": rejected_count,
+                "rejected_count": rejected_count,
+                "quarantined_count": quarantined_count,
+                "pending_review_count": pending_review_count,
+                "rejected_or_quarantined_count": rejected_count + quarantined_count,
+                "repaired_external_demonstration_count": repaired_count,
+                "accepted_repaired_count": accepted_repaired_count,
+                "project_task_ingress_count": 0,
+                "project_sampling_ingress_count": 0,
+                "model_generation_ingress_count": 0,
                 "train_eligible_count": len(rows),
                 "source_manifest_count": len(build_input.source_manifests),
                 "recovery_event": commit.recovery_event,
+            }
+        )
+    )
+    (output_dir / "manifest.json").write_bytes(
+        canonical_json_bytes(
+            {
+                "status": "CANDIDATE",
+                "candidate_kind": "EXTERNAL_DEMONSTRATION",
+                "input_manifest_hash": input_hash,
+                "logical_content_hash": commit.logical_content_hash,
+                "membership_sha256": sha256_file(output_dir / "membership.json"),
+                "source_manifest_hashes": {
+                    path.name: sha256_file(path) for path in build_input.source_manifests
+                },
+                "quality_policy": build_input.rule_version,
+                "counts": {
+                    "raw_external_demonstrations": len(demonstrations),
+                    "frozen_material": len(materials),
+                    "accepted": len(rows),
+                    "rejected": rejected_count,
+                    "quarantined": quarantined_count,
+                    "pending_review": pending_review_count,
+                    "repaired": repaired_count,
+                    "accepted_repaired": accepted_repaired_count,
+                    "project_task_ingress": 0,
+                    "project_sampling_ingress": 0,
+                    "model_generation_ingress": 0,
+                },
+                "processing": {
+                    "backend": backend,
+                    "processed_external_members": len(processed.rows),
+                    "model_invocation_count": 0,
+                    "source_only_transform": True,
+                },
             }
         )
     )

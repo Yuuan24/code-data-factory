@@ -42,7 +42,7 @@ class SftExample:
 
 
 def _content(message: dict[str, Any]) -> str:
-    if "tool_call" in message:
+    if message.get("tool_call") is not None:
         return json.dumps(message["tool_call"], sort_keys=True, separators=(",", ":"))
     content = message.get("content")
     if not isinstance(content, str):
@@ -72,6 +72,54 @@ def _render(tokenizer: ChatTokenizer, messages: list[dict[str, str]]) -> list[in
     if not isinstance(value, list) or not all(isinstance(token, int) for token in value):
         raise ExportError("tokenizer chat template did not produce token ids")
     return value
+
+
+def _unique_subsequence_start(haystack: list[int], needle: list[int]) -> int:
+    """Find one exact content-token span or fail rather than mislabel context."""
+
+    if not needle:
+        raise ExportError("assistant message has no trainable content tokens")
+    starts = [
+        index
+        for index in range(len(haystack) - len(needle) + 1)
+        if haystack[index : index + len(needle)] == needle
+    ]
+    if len(starts) != 1:
+        raise ExportError("chat template cannot map assistant content to one token span")
+    return starts[0]
+
+
+def _fallback_content_masks(
+    tokenizer: ChatTokenizer, *, input_ids: list[int], messages: list[dict[str, str]]
+) -> tuple[list[bool], dict[int, int], dict[str, int], int]:
+    """Mask exact assistant content when a tokenizer rewrites adjacent turns.
+
+    Some official tool-use templates reformat earlier assistant turns when a
+    following tool call is appended, so cumulative prefix subtraction is not
+    valid.  A unique content-token match preserves the full official rendering
+    and fails closed if a source answer could be confused with context.
+    """
+
+    mask = [False] * len(input_ids)
+    message_loss_counts: dict[int, int] = {}
+    role_token_counts: dict[str, int] = {}
+    source_content_tokens = 0
+    for index, message in enumerate(messages):
+        role = message["role"]
+        content_ids = tokenizer.encode(message["content"], add_special_tokens=False)
+        role_token_counts[role] = role_token_counts.get(role, 0) + len(content_ids)
+        source_content_tokens += len(content_ids)
+        if role != "assistant":
+            message_loss_counts[index] = 0
+            continue
+        start = _unique_subsequence_start(input_ids, content_ids)
+        if any(mask[start : start + len(content_ids)]):
+            raise ExportError("assistant content spans overlap in the rendered chat template")
+        mask[start : start + len(content_ids)] = [True] * len(content_ids)
+        message_loss_counts[index] = len(content_ids)
+    if not any(mask):
+        raise ExportError("chat template produced no assistant target tokens")
+    return mask, message_loss_counts, role_token_counts, len(input_ids) - source_content_tokens
 
 
 def export_sft_examples(
@@ -121,21 +169,30 @@ def export_sft_examples(
         if not isinstance(messages, list) or not messages:
             raise ExportError("attempt needs complete messages")
         template_messages: list[dict[str, str]] = []
+        for message in messages:
+            if not isinstance(message, dict) or message.get("role") not in {"user", "assistant", "tool"}:
+                raise ExportError("messages must use user, assistant, or tool roles")
+            template_messages.append(_template_message(message))
+
+        rendered_ids = _render(active_tokenizer, template_messages)
         input_ids: list[int] = []
         loss_mask: list[bool] = []
         role_token_counts: dict[str, int] = {}
         role_loss_counts: dict[str, int] = {}
+        message_loss_counts: dict[int, int] = {}
         controls = 0
-        for message_index, message in enumerate(messages):
-            if not isinstance(message, dict) or message.get("role") not in {"user", "assistant", "tool"}:
-                raise ExportError("messages must use user, assistant, or tool roles")
-            role = str(message["role"])
-            prefix_ids = _render(active_tokenizer, template_messages) if template_messages else []
-            rendered_message = _template_message(message)
-            rendered_ids = _render(active_tokenizer, [*template_messages, rendered_message])
-            if rendered_ids[: len(prefix_ids)] != prefix_ids:
-                raise ExportError("chat template is not prefix-stable for this message sequence")
-            encoded = rendered_ids[len(prefix_ids) :]
+        prefix_stable = True
+        for message_index, rendered_message in enumerate(template_messages):
+            role = rendered_message["role"]
+            # Render only the current prefix.  The full template was rendered
+            # above so an unstable template can fall back without changing its
+            # official representation.
+            prefix_ids = _render(active_tokenizer, template_messages[:message_index]) if message_index else []
+            prefix_rendered = _render(active_tokenizer, template_messages[: message_index + 1])
+            if prefix_rendered[: len(prefix_ids)] != prefix_ids:
+                prefix_stable = False
+                break
+            encoded = prefix_rendered[len(prefix_ids) :]
             if not encoded:
                 raise ExportError("chat template produced an empty message span")
             model_output = role == "assistant"
@@ -149,18 +206,25 @@ def export_sft_examples(
                     rendered_message["content"], add_special_tokens=False
                 )
                 controls += max(0, len(encoded) - len(content_ids))
+            message_loss_counts[message_index] = sum(mask)
+        if prefix_stable and input_ids != rendered_ids:
+            raise ExportError("chat template token boundaries are not reproducible")
+        if not prefix_stable:
+            input_ids = rendered_ids
+            loss_mask, message_loss_counts, role_token_counts, controls = _fallback_content_masks(
+                active_tokenizer, input_ids=input_ids, messages=template_messages
+            )
+            role_loss_counts = {"assistant": sum(loss_mask), "tool": 0, "user": 0}
+        for message_index, rendered_message in enumerate(template_messages):
             mappings.append(
                 {
                     "attempt_id": attempt_id,
                     "demonstration_id": demonstration_id,
                     "message_index": message_index,
-                    "role": role,
-                    "target_token_count": sum(mask),
+                    "role": rendered_message["role"],
+                    "target_token_count": message_loss_counts[message_index],
                 }
             )
-            template_messages.append(rendered_message)
-        if input_ids != _render(active_tokenizer, template_messages):
-            raise ExportError("chat template token boundaries are not reproducible")
         examples.append(
             SftExample(
                 attempt_id=attempt_id,

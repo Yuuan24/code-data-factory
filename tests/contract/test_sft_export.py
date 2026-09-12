@@ -25,6 +25,24 @@ class FakeChatTokenizer:
         )
 
 
+class NonPrefixStableTokenizer(FakeChatTokenizer):
+    """Models a tool template that rewrites a prior assistant turn."""
+
+    chat_template = "non-prefix-stable-v1"
+
+    def apply_chat_template(
+        self, conversation: list[dict[str, str]], *, tokenize: bool, add_generation_prompt: bool
+    ) -> list[int]:
+        assert tokenize is True
+        assert add_generation_prompt is False
+        rendered = "".join(
+            f"<{message['role']}>\n{message['content']}<eos>\n" for message in conversation
+        )
+        if len(conversation) >= 2 and conversation[-1]["role"] == "assistant":
+            rendered = rendered.replace("<assistant>\n", "<assistant-group>\n", 1)
+        return self.encode(rendered, add_special_tokens=False)
+
+
 def _attempt(attempt_id: str, *, unknown_action: bool = False) -> dict[str, object]:
     return {
         "attempt_id": attempt_id,
@@ -44,8 +62,11 @@ def _attempt(attempt_id: str, *, unknown_action: bool = False) -> dict[str, obje
 
 
 def test_sft_export_preserves_context_and_trains_only_model_output(tmp_path: Path) -> None:
+    source = _attempt("attempt-1")
+    for message in source["messages"]:  # type: ignore[index]
+        message.setdefault("tool_call", None)
     result = export_sft_examples(
-        [_attempt("attempt-1")],
+        [source],
         output_dir=tmp_path,
         tokenizer_name="test-byte-tokenizer",
         tokenizer_revision="v1",
@@ -86,6 +107,24 @@ def test_sft_export_rejects_unknown_error_position_without_mutating_source(tmp_p
         )
 
     assert source[0]["unknown_action_location"] is True
+
+
+def test_sft_export_uses_exact_assistant_content_when_template_rewrites_a_prefix(tmp_path: Path) -> None:
+    source = _attempt("attempt-non-prefix")
+    source["messages"][-1]["content"] = "The verified conversion equals exactly 100 cm.<eos>"  # type: ignore[index]
+    result = export_sft_examples(
+        [source],
+        output_dir=tmp_path,
+        tokenizer_name="test-byte-tokenizer",
+        tokenizer_revision="v1",
+        template_version="non-prefix-stable-v1",
+        tokenizer=NonPrefixStableTokenizer(),
+    )
+
+    example = result.examples[0]
+    assert sum(example.loss_mask) == example.role_loss_counts["assistant"]
+    assert example.role_loss_counts["assistant"] > 0
+    assert example.role_loss_counts["tool"] == 0
 
 
 def test_external_sft_export_requires_admitted_external_material_not_execution_pass(tmp_path: Path) -> None:

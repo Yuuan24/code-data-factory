@@ -113,9 +113,9 @@ T103–T108 是本次新增、尚未执行的工作。原研究中的 Toucan 审
 - [X] T107 [US1] 在 `src/code_data_factory/processing/quality.py`、`src/code_data_factory/datasets/build_input.py`、`src/code_data_factory/datasets/publish.py`、`src/code_data_factory/datasets/export_sft.py` 和 `configs/quality/external-sft.yaml` 实现分用途质量与发布，训练成员引用审核证据而非统一 outcome=PASS；源身份/原生工具语义/切分/敏感/上下文及真实目标映射通过才发布，拒绝本项目生成与评测记录，不调用模型/工具重新生成示范，发布只读取冻结输入和审核记录。（依赖：T106）
 - [X] T108 [US1] 更新 `src/code_data_factory/cli.py`、`dvc.yaml`、`src/code_data_factory/datasets/quality_reports.sql`、`src/code_data_factory/checkpoints/us1.py` 使外部输入贯穿构建/发布/导出与原始→规范→合格→发布计数、保留率/词元/成本；运行核心/交互软件契约、迁移、增量等价/撤销/掩码及无环境发布回归，保存 `artifacts/checkpoints/external-migration.json` 并复核本机私有记录，软件测试不得算 SC-016 的真实外部交付。（依赖：T107）
 
-- [ ] T045 [US1] 按 `configs/sources/external-training.json`、`configs/quality/external-sft.yaml` 对实际外部来源做试点：保留上游版本/许可/原始分片及工具定义，按来源和能力切片抽审至少 30 条（不足全审并注明局限）；保存 `artifacts/data-audit/external-pilot/manifest.json`、`artifacts/data-audit/external-pilot/trajectory_review.parquet` 和来源—评测能力映射，无合格来源则继续外部选源，不自行采样补足。（依赖：T108）
-- [ ] T046 [US1] 在 `configs/data/external-production.yaml` 冻结外部分片、质量规则、切分登记及批处理费用/规模上限，复用 Ray 治理实际原料并输出 `data/candidates/external/manifest.json`；根据实际保留率、独立任务/派生数、能力覆盖和有效词元决定扩量，至少一个真实来源非空；拒绝/待复核/修复可对账，本项目任务或采样进入数必须为零。（依赖：T045）
-- [ ] T047 [US1] 将 T046 的外部合格池发布至 `data/releases/external/`、导出至 `data/exports/external/`，验证全部目标可追溯上游消息及修复父链；禁用本地交互环境和模型生成重建，成员/逻辑哈希相同，缺审核证据版本拒绝；保存 `artifacts/checkpoints/us1-external.json`，完成 SC-016–018 与原 US1 实际发布回验，记录实际词元/质量/成本，不依赖 T044 或 T058。（依赖：T046）
+- [X] T045 [US1] 按 `configs/sources/external-training.json`、`configs/quality/external-sft.yaml` 对实际外部来源做试点：保留上游版本/许可/原始分片及工具定义，按来源和能力切片抽审至少 30 条（不足全审并注明局限）；保存 `artifacts/data-audit/external-pilot/manifest.json`、`artifacts/data-audit/external-pilot/trajectory_review.parquet` 和来源—评测能力映射，无合格来源则继续外部选源，不自行采样补足。（依赖：T108）
+- [X] T046 [US1] 在 `configs/data/external-production.yaml` 冻结外部分片、质量规则、切分登记及批处理费用/规模上限，复用 Ray 治理实际原料并输出 `data/candidates/external/manifest.json`；根据实际保留率、独立任务/派生数、能力覆盖和有效词元决定扩量，至少一个真实来源非空；拒绝/待复核/修复可对账，本项目任务或采样进入数必须为零。（依赖：T045）
+- [X] T047 [US1] 将 T046 的外部合格池发布至 `data/releases/external/`、导出至 `data/exports/external/`，验证全部目标可追溯上游消息及修复父链；禁用本地交互环境和模型生成重建，成员/逻辑哈希相同，缺审核证据版本拒绝；保存 `artifacts/checkpoints/us1-external.json`，完成 SC-016–018 与原 US1 实际发布回验，记录实际词元/质量/成本，不依赖 T044 或 T058。（依赖：T046）
 
 **Checkpoint (2.1 required)**: T047 完成真实外部训练发布，SC-016–018 可追溯；无环境/采样仍可运行主线。
 
@@ -142,7 +142,7 @@ T103–T108 是本次新增、尚未执行的工作。原研究中的 Toucan 审
 - [X] T042 [US2] 在 `src/code_data_factory/verification/rewards.py`、`configs/quality/reward-terminal-v1.yaml` 实现已验证 PASS→1、FAIL→0、UNKNOWN→null 的独立版本记录，过程诊断不混入终局奖励，原证据不可覆盖。（依赖：T041）
 - [X] T043 [US2] 在 `src/code_data_factory/cli.py` 接入 `environment check`、`trajectory collect/inspect/replay`、`verify run`，对统一输出和所有终态进行契约核对。（依赖：T028、T042）
 - [X] T044 [US2] 在合格 Linux 环境完成 100 先导任务各两次固定动作执行与至少 35 例全部金标准对照，保存 `artifacts/verifications/pilot/manifest.json`；逐任务审计依据，失败先修复并停止扩大采样。（依赖：T032、T043）
-- [ ] T048 [US2] 保存 `artifacts/checkpoints/us2.json` 并更新本机私有决策记录（不提交），关联原 100 任务固定动作、35 例正负对照和独立判定；复核迁移对执行语义/环境版本的影响，受影响证据按新版本重跑，未受影响才引用旧回执；明确这些资产仅用于验证/评测，模型真实采样另由 T058 验收，外部数据发布另由 T047 验收，不将任一分支证据互相替代。（依赖：T044、T108）
+- [X] T048 [US2] 保存 `artifacts/checkpoints/us2.json` 并更新本机私有决策记录（不提交），关联原 100 任务固定动作、35 例正负对照和独立判定；复核迁移对执行语义/环境版本的影响，受影响证据按新版本重跑，未受影响才引用旧回执；明确这些资产仅用于验证/评测，模型真实采样另由 T058 验收，外部数据发布另由 T047 验收，不将任一分支证据互相替代。（依赖：T044、T108）
 
 **Checkpoint**: 有可执行验证资产和独立结果判定；工具成功不能替代任务成功，也不能替代外部训练示范准入。
 

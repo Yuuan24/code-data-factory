@@ -84,13 +84,32 @@ def _ref(name: str, value: Any, scope: AccessScope, producer_run_id: str) -> Art
 
 def _event_type(message: dict[str, Any]) -> EventType:
     role = message.get("role")
-    if role == "tool":
+    if role in {"tool", "tool_response"}:
         return EventType.TOOL_RESULT
-    if role == "assistant" and message.get("tool_calls"):
+    if role == "tool_call" or (role == "assistant" and message.get("tool_calls")):
         return EventType.TOOL_CALL
     if role == "assistant":
         return EventType.MODEL_OUTPUT
     return EventType.OBSERVATION
+
+
+def _training_message(message: dict[str, Any], *, tool_call_id: str | None = None) -> dict[str, Any]:
+    """Normalize known Toucan role labels without evaluating source payload text."""
+
+    role = message.get("role")
+    if role == "tool_call":
+        return {
+            "role": "assistant",
+            "content": "",
+            "tool_call": {"id": tool_call_id, "raw_content": message.get("content", "")},
+        }
+    if role == "tool_response":
+        return {
+            "role": "tool",
+            "tool_call_id": tool_call_id,
+            "content": message.get("content", ""),
+        }
+    return dict(message)
 
 
 def _records_from_source(source: Path) -> list[object]:
@@ -130,10 +149,13 @@ def import_toucan_records(
     quarantine: list[QuarantinedRecord] = []
     now = datetime.now(UTC)
     for row in raw:
-        if not isinstance(row, dict) or not isinstance(row.get("id"), str):
+        if not isinstance(row, dict):
             quarantine.append(QuarantinedRecord(upstream_id="<unknown>", reason=AssociationAmbiguity.INVALID_MESSAGE))
             continue
-        upstream_id = row["id"]
+        upstream_id = row.get("id", row.get("uuid"))
+        if not isinstance(upstream_id, str) or not upstream_id:
+            quarantine.append(QuarantinedRecord(upstream_id="<unknown>", reason=AssociationAmbiguity.INVALID_MESSAGE))
+            continue
         messages = _messages(row.get("messages"))
         if messages is None:
             quarantine.append(QuarantinedRecord(upstream_id=upstream_id, reason=AssociationAmbiguity.INVALID_MESSAGE))
@@ -153,31 +175,44 @@ def import_toucan_records(
             )
             continue
         calls: set[str] = set()
+        pending_calls: list[str] = []
         ambiguous: AssociationAmbiguity | None = None
         events: list[TrajectoryEvent] = []
         attempt_id = f"{snapshot_id}:{upstream_id}:historical"
+        normalized_messages: list[dict[str, Any]] = []
         for seq, message in enumerate(messages):
             kind = _event_type(message)
             tool_call_id: str | None = None
             if kind is EventType.TOOL_CALL:
-                tool_calls = message.get("tool_calls")
-                if not isinstance(tool_calls, list) or len(tool_calls) != 1:
-                    ambiguous = AssociationAmbiguity.INVALID_MESSAGE
-                    break
-                call = tool_calls[0]
-                if not isinstance(call, dict) or not isinstance(call.get("id"), str):
-                    ambiguous = AssociationAmbiguity.INVALID_MESSAGE
-                    break
-                tool_call_id = call["id"]
+                if message.get("role") == "tool_call":
+                    tool_call_id = f"{attempt_id}:source-call:{seq}"
+                else:
+                    tool_calls = message.get("tool_calls")
+                    if not isinstance(tool_calls, list) or len(tool_calls) != 1:
+                        ambiguous = AssociationAmbiguity.INVALID_MESSAGE
+                        break
+                    call = tool_calls[0]
+                    if not isinstance(call, dict) or not isinstance(call.get("id"), str):
+                        ambiguous = AssociationAmbiguity.INVALID_MESSAGE
+                        break
+                    tool_call_id = call["id"]
                 if tool_call_id in calls:
                     ambiguous = AssociationAmbiguity.DUPLICATE_TOOL_CALL
                     break
                 calls.add(tool_call_id)
+                pending_calls.append(tool_call_id)
             elif kind is EventType.TOOL_RESULT:
                 tool_call_id = message.get("tool_call_id")
+                if message.get("role") == "tool_response":
+                    tool_call_id = pending_calls.pop(0) if pending_calls else None
+                elif isinstance(tool_call_id, str) and tool_call_id in pending_calls:
+                    pending_calls.remove(tool_call_id)
                 if not isinstance(tool_call_id, str) or tool_call_id not in calls:
                     ambiguous = AssociationAmbiguity.ORPHAN_TOOL_RESULT
                     break
+            normalized_messages.append(
+                _training_message(message, tool_call_id=tool_call_id)
+            )
             events.append(
                 TrajectoryEvent(
                     event_id=f"{attempt_id}:event:{seq}",
@@ -203,7 +238,7 @@ def import_toucan_records(
         answer = next(
             (
                 message
-                for message in reversed(messages)
+                for message in reversed(normalized_messages)
                 if message.get("role") == "assistant" and not message.get("tool_calls")
             ),
             None,
@@ -237,7 +272,7 @@ def import_toucan_records(
                 AccessScope.MODEL_VISIBLE,
                 producer_run_id,
             )
-            for seq, message in enumerate(messages)
+            for seq, message in enumerate(normalized_messages)
         ]
         demonstrations.append(
             ExternalDemonstration(
@@ -245,7 +280,7 @@ def import_toucan_records(
                 source_record_id=f"{snapshot_id}:{upstream_id}",
                 upstream_task_ref=_ref(
                     f"{snapshot_id}-{upstream_id}-task",
-                    row.get("task", messages[0]),
+                    row.get("question", row.get("task", normalized_messages[0])),
                     AccessScope.MODEL_VISIBLE,
                     producer_run_id,
                 ),
@@ -258,7 +293,7 @@ def import_toucan_records(
                 message_refs=message_refs,
                 call_result_refs=[
                     message_refs[seq]
-                    for seq, message in enumerate(messages)
+                    for seq, message in enumerate(normalized_messages)
                     if message.get("role") == "tool"
                 ],
                 answer_ref=_ref(
@@ -278,7 +313,7 @@ def import_toucan_records(
         materials.append(
             {
                 "demonstration_id": f"{snapshot_id}:{upstream_id}",
-                "messages": messages,
+                "messages": normalized_messages,
             }
         )
         attempt = Attempt(

@@ -1,0 +1,34 @@
+# Frozen inputs and limits for the first real external-SFT candidate pool.
+dataset_id: external
+candidate_version: external-pilot-v1
+source:
+  source_id: toucan-1.5m
+  source_uri: https://huggingface.co/datasets/Agent-Ark/Toucan-1.5M
+  revision: 0df3cf37f2abefb380370cfb02eabea2a35ae782
+  license: Apache-2.0
+  shard: SFT/train-00000-of-00003.parquet
+  shard_sha256: 5657480020d6a16566363e74782f788ca0412c9c30d8858d33c84c3fee1a8dd4
+  pilot_shard: SFT/pilot-00000-first-100.parquet
+  pilot_shard_sha256: 65afc17bd5a65777111682074ef3028b545d6a674e4237ede02739cabeb9552c
+quality_policy: external-sft-v1
+split_registry: data/normalized/external-pilot-v2/split_registry.json
+build_input: data/normalized/external-pilot-v2/external-input.json
+processing:
+  backend: ray
+  max_raw_external_demonstrations: 100
+  max_accepted_external_demonstrations: 100
+  model_invocation_count: 0
+  project_task_ingress_count: 0
+  project_sampling_ingress_count: 0
+cost:
+  currency: CNY
+  provider_charge_cny_fen: null
+  note: local Ray governance; no provider charge was observed, so zero is not asserted
+expansion_gate:
+  minimum_accepted_members: 1
+  required_measurements:
+    - retention_rate
+    - independent_demonstration_count
+    - capability_coverage_count
+    - effective_loss_tokens
+  decision: hold_at_pilot_until_the_frozen_export_measures_effective_loss_tokens

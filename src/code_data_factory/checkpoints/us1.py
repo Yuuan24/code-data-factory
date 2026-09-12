@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
-from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes, sha256_file
+import yaml
+
+from code_data_factory.contracts.artifacts import (
+    canonical_json_bytes,
+    canonical_yaml_hash,
+    sha256_bytes,
+    sha256_file,
+)
 from code_data_factory.datasets.export_sft import export_sft_examples
-from code_data_factory.datasets.publish import publish_dataset
+from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
+from code_data_factory.processing.quality import EXTERNAL_PUBLICATION_REVIEW_CHECKS
 from code_data_factory.sources.revoke import revoke_source
 from code_data_factory.sources.toucan import import_toucan_records
 from code_data_factory.tasks.build import build_pilot_tasks
@@ -122,6 +131,207 @@ def run_external_migration_checkpoint(
         "limitations": [
             "This receipt verifies migration software only; it does not prove a real external source, review, candidate pool, or release.",
             "SC-016 through SC-018 remain open until T045 through T047 use real frozen external inputs.",
+        ],
+    }
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(canonical_json_bytes(receipt))
+    return receipt
+
+
+def _json_list(path: Path, *, label: str) -> list[dict[str, Any]]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise ValueError(f"US1 external checkpoint cannot read {label}") from error
+    if not isinstance(value, list) or not all(isinstance(item, dict) for item in value):
+        raise ValueError(f"US1 external checkpoint {label} must be a JSON object list")
+    return value
+
+
+def run_us1_external_checkpoint(
+    *,
+    output_path: Path,
+    production_config: Path,
+    candidate_manifest: Path,
+    build_receipt: Path,
+    membership: Path,
+    release_manifest: Path,
+    release_lineage: Path,
+    release_quality: Path,
+    release_cost: Path,
+    export_manifest: Path,
+    export_audit: Path,
+) -> dict[str, Any]:
+    """Bind the real external candidate, immutable release, and SFT view.
+
+    This is data-delivery evidence only.  It deliberately does not invoke a
+    task environment, a sampler, a model, or a trainer.
+    """
+
+    candidate = _required_object(
+        candidate_manifest,
+        label="external candidate manifest",
+        required_keys={"status", "counts", "logical_content_hash", "membership_sha256"},
+    )
+    build = _required_object(
+        build_receipt,
+        label="external build receipt",
+        required_keys={
+            "accepted_count",
+            "pending_review_count",
+            "project_sampling_ingress_count",
+            "project_task_ingress_count",
+            "raw_external_demonstration_count",
+        },
+    )
+    release = _required_object(
+        release_manifest,
+        label="external release manifest",
+        required_keys={"member_count", "member_kind", "input_manifest_hash", "logical_content_hash"},
+    )
+    lineage = _required_object(
+        release_lineage,
+        label="external release lineage",
+        required_keys={"external_demonstrations", "source_records"},
+    )
+    quality = _required_object(
+        release_quality,
+        label="external release quality report",
+        required_keys={"external_demonstration_count", "train_member_count"},
+    )
+    cost = _required_object(release_cost, label="external release cost report", required_keys={"cost_cny_fen"})
+    exported = _required_object(
+        export_manifest,
+        label="external export manifest",
+        required_keys={"example_count", "member_kind", "source_digest"},
+    )
+    audit = _required_object(
+        export_audit,
+        label="external loss-mask audit",
+        required_keys={"example_count", "examples", "source_external_demonstration_count", "source_digest"},
+    )
+    config_text = production_config.read_text(encoding="utf-8")
+    config = yaml.safe_load(config_text)
+    if not isinstance(config, dict):
+        raise ValueError("US1 external checkpoint production config must be a mapping")
+    members = _json_list(membership, label="external membership")
+    if not members:
+        raise ValueError("US1 external checkpoint requires a non-empty real external membership")
+    candidate_counts = candidate["counts"]
+    if not isinstance(candidate_counts, dict):
+        raise ValueError("US1 external checkpoint candidate counts must be a mapping")
+    member_digest = sha256_bytes(canonical_json_bytes(members))
+    member_ids = {str(item.get("demonstration_id")) for item in members}
+    lineage_rows = lineage["external_demonstrations"]
+    if not isinstance(lineage_rows, list) or not all(isinstance(item, dict) for item in lineage_rows):
+        raise ValueError("US1 external checkpoint lineage must list external demonstrations")
+    lineage_by_id = {str(item.get("demonstration_id")): item for item in lineage_rows}
+    if len(member_ids) != len(members) or set(lineage_by_id) != member_ids:
+        raise ValueError("US1 external checkpoint release lineage does not match the candidate membership")
+    target_token_count = 0
+    input_token_count = 0
+    examples = audit["examples"]
+    if not isinstance(examples, list) or len(examples) != len(members):
+        raise ValueError("US1 external checkpoint export audit does not cover every released member")
+    for member in members:
+        demonstration_id = str(member.get("demonstration_id", ""))
+        review_checks = member.get("review_checks")
+        message_refs = member.get("upstream_message_refs")
+        if not demonstration_id or member.get("source_origin") not in {"PUBLIC_ORIGINAL", "DERIVED"}:
+            raise ValueError("US1 external checkpoint found non-external candidate ingress")
+        if not isinstance(review_checks, list) or not EXTERNAL_PUBLICATION_REVIEW_CHECKS <= set(review_checks):
+            raise ValueError("US1 external checkpoint found a member without complete review evidence")
+        if not isinstance(message_refs, list) or not message_refs:
+            raise ValueError("US1 external checkpoint found a member without upstream messages")
+        lineage_row = lineage_by_id[demonstration_id]
+        if lineage_row.get("upstream_message_refs") != message_refs:
+            raise ValueError("US1 external checkpoint found mismatched upstream message lineage")
+        parent = member.get("parent_demonstration_id")
+        if parent is not None and lineage_row.get("parent_demonstration_id") != parent:
+            raise ValueError("US1 external checkpoint found a mismatched repair parent")
+    for example in examples:
+        if not isinstance(example, dict):
+            raise ValueError("US1 external checkpoint export examples must be objects")
+        input_ids = example.get("input_ids")
+        loss_mask = example.get("loss_mask")
+        if not isinstance(input_ids, list) or not isinstance(loss_mask, list) or len(input_ids) != len(loss_mask):
+            raise ValueError("US1 external checkpoint found invalid exported token arrays")
+        input_token_count += len(input_ids)
+        target_token_count += sum(bool(value) for value in loss_mask)
+    if target_token_count <= 0:
+        raise ValueError("US1 external checkpoint exported no effective loss tokens")
+    negative_member = dict(members[0])
+    negative_member.pop("review_checks", None)
+    missing_review_rejected = False
+    with TemporaryDirectory(prefix="cdf-us1-external-gate-") as temporary:
+        try:
+            publish_dataset(
+                dataset_id="missing-review-evidence",
+                members=[negative_member],
+                output_dir=Path(temporary),
+                input_manifest_hash=member_digest,
+                rule_version=str(release["rule_version"]),
+            )
+        except PublicationGateError:
+            missing_review_rejected = True
+    checks = {
+        "real_external_source_is_nonempty": build["raw_external_demonstration_count"] > 0,
+        "candidate_counts_reconcile": candidate_counts.get("accepted") == len(members)
+        and candidate_counts.get("accepted") == build["accepted_count"],
+        "pending_and_rejected_are_outside_release": candidate_counts.get("pending_review")
+        == build["pending_review_count"],
+        "no_project_ingress": build["project_task_ingress_count"] == 0
+        and build["project_sampling_ingress_count"] == 0
+        and candidate_counts.get("model_generation_ingress") == 0,
+        "release_preserves_candidate_membership": candidate.get("membership_sha256") == member_digest
+        and release["input_manifest_hash"] == member_digest
+        and candidate["logical_content_hash"] == release["logical_content_hash"],
+        "every_member_has_upstream_message_and_repair_lineage": True,
+        "release_quality_reconciles": quality["external_demonstration_count"] == len(members)
+        and quality["train_member_count"] == len(members),
+        "export_reuses_exact_member_set": exported["member_kind"] == "EXTERNAL_DEMONSTRATION"
+        and exported["example_count"] == len(members)
+        and audit["source_external_demonstration_count"] == len(members)
+        and exported["source_digest"] == member_digest
+        and audit["source_digest"] == member_digest,
+        "effective_loss_tokens_are_nonzero": target_token_count > 0,
+        "missing_review_evidence_is_rejected": missing_review_rejected,
+        "no_environment_or_model_rebuild": True,
+    }
+    if not all(checks.values()):
+        raise ValueError("US1 external checkpoint facts are inconsistent")
+    receipt = {
+        "checkpoint": "US1_EXTERNAL_RELEASE",
+        "created_at": datetime.now(UTC).isoformat(),
+        "evidence_level": "SOFTWARE_VALIDATED",
+        "real_external_delivery": True,
+        "scope": "real external demonstration governance, immutable release, and tokenizer export",
+        "counts": {
+            "raw_external_demonstrations": build["raw_external_demonstration_count"],
+            "accepted_external_demonstrations": len(members),
+            "rejected_external_demonstrations": candidate_counts.get("rejected"),
+            "pending_review_external_demonstrations": candidate_counts.get("pending_review"),
+            "released_external_demonstrations": release["member_count"],
+            "sft_examples": exported["example_count"],
+            "sft_input_tokens": input_token_count,
+            "sft_effective_loss_tokens": target_token_count,
+            "provider_charge_cny_fen": cost["cost_cny_fen"],
+        },
+        "checks": checks,
+        "input_hashes": {
+            "production_config": canonical_yaml_hash(config_text),
+            "candidate_manifest": sha256_file(candidate_manifest),
+            "build_receipt": sha256_file(build_receipt),
+            "membership": sha256_file(membership),
+            "release_manifest": sha256_file(release_manifest),
+            "release_lineage": sha256_file(release_lineage),
+            "export_manifest": sha256_file(export_manifest),
+            "export_audit": sha256_file(export_audit),
+        },
+        "limitations": [
+            "This proves real external-data delivery, not model training, model improvement, or execution replay.",
+            "The frozen pilot has pending-review members outside the release; they were not silently admitted.",
+            "T044 validation assets and T058 model sampling are not inputs to this receipt.",
         ],
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)

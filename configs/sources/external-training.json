@@ -8,7 +8,9 @@
       "usage_scope": "TRAIN",
       "source_kind": "tool-trajectory-history",
       "adapter": "toucan",
-      "required_upstream_fields": ["id", "tools", "messages"],
+      "local_path": "data/raw/toucan-1.5m/SFT/train-00000-of-00003.parquet",
+      "expected_sha256": "5657480020d6a16566363e74782f788ca0412c9c30d8858d33c84c3fee1a8dd4",
+      "required_upstream_fields": ["uuid", "tools", "messages"],
       "required_tools": ["read_document", "search_documents", "calculate", "convert"],
       "shards": ["SFT/train-00000-of-00003.parquet"],
       "review_policy": "external-sft-v1"

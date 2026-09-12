@@ -172,6 +172,21 @@ def test_external_build_reads_only_frozen_demonstrations_and_eligibility_records
     )
 
     assert result.member_count == 1
+    candidate_manifest = json.loads((tmp_path / "candidate" / "manifest.json").read_text(encoding="utf-8"))
+    assert candidate_manifest["status"] == "CANDIDATE"
+    assert candidate_manifest["counts"] == {
+        "accepted": 1,
+        "accepted_repaired": 0,
+        "frozen_material": 1,
+        "model_generation_ingress": 0,
+        "pending_review": 0,
+        "project_sampling_ingress": 0,
+        "project_task_ingress": 0,
+        "quarantined": 0,
+        "raw_external_demonstrations": 1,
+        "rejected": 0,
+        "repaired": 0,
+    }
     members = json.loads((tmp_path / "candidate" / "membership.json").read_text(encoding="utf-8"))
     assert members == [
         {

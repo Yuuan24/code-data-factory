@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from code_data_factory.cli import EXIT_INPUT_ERROR, main
+from code_data_factory.cli import EXIT_INPUT_ERROR, _resumed_build, main
 
 
 def test_business_command_without_required_artifacts_fails_closed(capsys: object) -> None:
@@ -64,6 +64,38 @@ def test_data_build_resume_rejects_a_completed_receipt_with_different_identity(
         == EXIT_INPUT_ERROR
     )
     assert "--resume conflicts" in json.loads(capsys.readouterr().out)["errors"][0]
+
+
+def test_external_build_resume_rebuilds_when_its_derived_candidate_manifest_is_missing(
+    tmp_path: Path,
+) -> None:
+    output = tmp_path / "candidate"
+    output.mkdir()
+    (output / "build_receipt.json").write_text(
+        json.dumps(
+            {
+                "run_id": "external-run",
+                "backend": "local",
+                "input_manifest_hash": "input-hash",
+                "member_kind": "EXTERNAL_DEMONSTRATION",
+                "member_count": 1,
+                "accepted_count": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (output / "membership.json").write_text("[]", encoding="utf-8")
+    (output / "eligibility_decisions.json").write_text("{}", encoding="utf-8")
+
+    assert (
+        _resumed_build(
+            output,
+            run_id="external-run",
+            backend="local",
+            input_manifest_hash="input-hash",
+        )
+        is None
+    )
 
 
 def test_external_build_and_publish_need_no_execution_environment(
@@ -143,7 +175,10 @@ def test_external_build_and_publish_need_no_execution_environment(
         )
         == 0
     )
-    assert json.loads(capsys.readouterr().out)["counts"]["members"] == 1
+    build_envelope = json.loads(capsys.readouterr().out)
+    assert build_envelope["counts"]["members"] == 1
+    assert any(path.endswith("eligibility_decisions.json") for path in build_envelope["artifact_refs"])
+    assert any(path.endswith("manifest.json") for path in build_envelope["artifact_refs"])
     policy = tmp_path / "external-sft.yaml"
     policy.write_text("policy_version: external-sft-v1\n", encoding="utf-8")
     assert (

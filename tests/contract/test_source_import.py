@@ -184,3 +184,65 @@ def test_import_requires_an_explicit_upstream_tool_definition(tmp_path: Path) ->
     assert imported.records == []
     assert imported.demonstrations == []
     assert imported.quarantine[0].reason == "MISSING_TOOL_DEFINITION"
+
+
+def test_import_normalizes_toucan_tool_call_and_response_roles_without_evaluation(tmp_path: Path) -> None:
+    source = tmp_path / "toucan-roles.json"
+    source.write_text(
+        json.dumps(
+            [
+                {
+                    "id": "toucan-role-example",
+                    "question": "Find a rhyme.",
+                    "tools": [{"type": "function", "function": {"name": "find_rhymes"}}],
+                    "messages": [
+                        {"role": "user", "content": "Find a rhyme."},
+                        {
+                            "role": "tool_call",
+                            "content": "{'name': '__import__(\"os\").system(\"false\")'}",
+                        },
+                        {"role": "tool_response", "content": "plain tool result"},
+                        {"role": "assistant", "content": "answer"},
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    imported = import_toucan_records(source, snapshot_id="toucan-test", producer_run_id="run-1")
+
+    assert imported.quarantine == []
+    assert [event.event_type.value for event in imported.trajectories[0].events] == [
+        "OBSERVATION",
+        "TOOL_CALL",
+        "TOOL_RESULT",
+        "MODEL_OUTPUT",
+    ]
+    material = imported.materials[0]["messages"]
+    assert material[1]["role"] == "assistant"
+    assert material[1]["tool_call"]["raw_content"].startswith("{'name'")
+    assert material[2]["role"] == "tool"
+
+
+def test_import_accepts_toucan_uuid_when_legacy_id_is_absent(tmp_path: Path) -> None:
+    source = tmp_path / "uuid.json"
+    source.write_text(
+        json.dumps(
+            [
+                {
+                    "uuid": "source-uuid",
+                    "tools": [],
+                    "messages": [
+                        {"role": "user", "content": "question"},
+                        {"role": "assistant", "content": "answer"},
+                    ],
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    imported = import_toucan_records(source, snapshot_id="toucan-test", producer_run_id="run-1")
+
+    assert imported.records[0].upstream_id == "source-uuid"
