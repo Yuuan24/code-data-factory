@@ -1,0 +1,4 @@
+[
+  {"demonstration_id":"demo-target","candidate_pool_version":"external-pilot-v1","source_id":"source-a","task_family":"lookup","dependency_depth":1,"length_bin":"short","verification_strength":"strong","baseline_difficulty":"medium","failure_types":["CONSTRAINT_FAILURE"]},
+  {"demonstration_id":"demo-control","candidate_pool_version":"external-pilot-v1","source_id":"source-a","task_family":"lookup","dependency_depth":1,"length_bin":"short","verification_strength":"strong","baseline_difficulty":"medium","failure_types":["OTHER"]}
+]
