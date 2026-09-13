@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from code_data_factory.cli import EXIT_INPUT_ERROR, main
 from code_data_factory.datasets.feedback import FeedbackError, build_data_actions
 from code_data_factory.datasets.recipes import build_recipe_drafts
 from code_data_factory.evaluation.findings import build_findings
@@ -96,3 +97,12 @@ def test_findings_actions_and_recipes_keep_test_out_and_bind_every_targeted_sele
     assert recipes["paired_member_count"] > 0
     with pytest.raises(FeedbackError, match="development"):
         build_data_actions(evaluation_path=tmp_path / "suite" / "suite_manifest.json", findings_path=tmp_path / "findings" / "findings.json", candidate_pool_path=pool_path, output_dir=tmp_path / "bad", policy_path=Path("configs/quality/feedback.yaml"))
+
+
+def test_evaluate_and_feedback_cli_are_wired_and_test_cannot_be_unlocked_by_split_flag(tmp_path: Path, capsys: object) -> None:
+    model = tmp_path / "fixture-model.json"
+    model.write_text(json.dumps({"kind": "FIXTURE_EVALUATOR", "model_id": "fixture"}), encoding="utf-8")
+    output = tmp_path / "evaluation"
+    assert main(["--json", "--suite", "configs/evaluation/tool-tasks.yaml", "--model", str(model), "--output-dir", str(output), "evaluate", "run"]) == 0
+    assert json.loads(capsys.readouterr().out)["counts"] == {"tasks": 200}
+    assert main(["--json", "--suite", "configs/evaluation/tool-tasks.yaml", "--model", str(model), "--split", "TEST", "--output-dir", str(tmp_path / "test"), "evaluate", "run"]) == EXIT_INPUT_ERROR

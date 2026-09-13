@@ -18,7 +18,12 @@ from code_data_factory.contracts.tasks import TaskPackage
 from code_data_factory.datasets.build import build_draft
 from code_data_factory.datasets.build_input import BuildInputError, load_build_input
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
+from code_data_factory.datasets.feedback import build_data_actions
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
+from code_data_factory.datasets.recipes import build_recipe_drafts
+from code_data_factory.evaluation.findings import build_findings
+from code_data_factory.evaluation.interactive import run_evaluation
+from code_data_factory.evaluation.suites import build_tool_task_suite
 from code_data_factory.interaction.environment import check_environment
 from code_data_factory.interaction.local_sampler import LocalSamplerError, run_local_sampling_probe
 from code_data_factory.interaction.pilot import execute_fixed_actions, load_facts
@@ -89,6 +94,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mode", choices=("contract", "sampling", "long-horizon"))
     parser.add_argument("--evidence", type=Path)
     parser.add_argument("--policy", type=Path)
+    parser.add_argument("--suite", type=Path)
+    parser.add_argument("--model", type=Path)
+    parser.add_argument("--evaluation", type=Path)
+    parser.add_argument("--pool", type=Path)
+    parser.add_argument("--actions", type=Path)
+    parser.add_argument("--split", choices=("DEVELOPMENT", "TEST"), default="DEVELOPMENT")
+    parser.add_argument("--test-unlock", type=Path)
     parser.add_argument("command", nargs="*")
     return parser
 
@@ -153,6 +165,33 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
     if parsed.dry_run:
         return CommandEnvelope(command, run_id, "VALIDATED", "UNVERIFIED", [], {}, [], [])
     output = _require_output(parsed)
+    if parsed.command == ["evaluate", "run"]:
+        if parsed.suite is None or parsed.model is None:
+            raise ValueError("evaluate run requires --suite and --model")
+        suite_path = build_tool_task_suite(parsed.suite, output_dir=output / "suite")
+        profile = json.loads(parsed.model.read_text(encoding="utf-8"))
+        if not isinstance(profile, dict) or profile.get("kind") != "FIXTURE_EVALUATOR":
+            raise ValueError("evaluate run requires a configured supported evaluator")
+        def fixture(task: object) -> dict[str, object]:
+            return {"value": task.expected_value, "unit": task.expected_unit, "evidence": list(task.document_ids)}  # type: ignore[attr-defined]
+        receipt = run_evaluation(suite_manifest=suite_path, split=parsed.split, executor=fixture, output_dir=output, model_identity={"model_id": profile.get("model_id"), "kind": profile["kind"]}, test_unlock=parsed.test_unlock)
+        if parsed.split != "DEVELOPMENT":
+            raise ValueError("final test cannot be run by the fixture evaluator")
+        task_count = receipt.get("fixed_denominator")
+        if not isinstance(task_count, int):
+            raise ValueError("evaluation receipt has invalid denominator")
+        return _completed(command, run_id, [suite_path, output / "evaluation_run.json"], {"tasks": task_count})
+    if parsed.command == ["feedback", "build"]:
+        if parsed.evaluation is None or parsed.pool is None or parsed.policy is None:
+            raise ValueError("feedback build requires --evaluation, --pool, and --policy")
+        findings = build_findings(parsed.evaluation, output_dir=output / "findings")
+        del findings
+        actions = build_data_actions(evaluation_path=parsed.evaluation, findings_path=output / "findings" / "findings.json", candidate_pool_path=parsed.pool, output_dir=output / "actions", policy_path=parsed.policy)
+        recipes = build_recipe_drafts(actions_path=output / "actions" / "data_actions.json", candidate_pool_path=parsed.pool, output_dir=output / "recipes")
+        action_rows, pairs = actions.get("actions"), recipes.get("paired_member_count")
+        if not isinstance(action_rows, list) or not isinstance(pairs, int):
+            raise ValueError("feedback receipts are malformed")
+        return _completed(command, run_id, [output / "findings" / "findings.json", output / "actions" / "data_actions.json", output / "recipes" / "recipe_drafts.json"], {"actions": len(action_rows), "pairs": pairs})
     if parsed.command == ["compatibility", "check"]:
         if parsed.profile is None or parsed.mode is None:
             raise ValueError("compatibility check requires --profile and --mode")
