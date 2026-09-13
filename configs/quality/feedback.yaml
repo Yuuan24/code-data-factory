@@ -1,0 +1,7 @@
+policy_version: feedback-v1
+allowed_actions:
+  - RESELECT_SAME_POOL
+prohibited_ingress:
+  - PROJECT_SAMPLING
+  - MODEL_GENERATION
+  - MODEL_EVALUATION

@@ -1,0 +1,7 @@
+suite_id: ToolTaskBench-v1
+version: tool-tasks-v1
+development_task_count: 200
+test_task_count: 200
+source_template_group_count: 20
+minimum_family_count: 40
+minimum_unseen_test_count: 50
