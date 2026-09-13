@@ -109,7 +109,7 @@ def test_evaluate_and_feedback_cli_are_wired_and_test_cannot_be_unlocked_by_spli
 
 
 def test_recipe_pool_profile_uses_only_frozen_external_membership(tmp_path: Path) -> None:
-    membership = [{"demonstration_id": "demo", "eligibility_action": "ACCEPT", "messages": [{"role": "user", "content": "check alert"}, {"role": "assistant", "content": "", "tool_call": {"raw_content": "{'name': 'weather-get_alerts', 'arguments': '{}'}"}}, {"role": "tool", "content": "ok"}], "review_checks": ["a"] * 6}]
+    membership = [{"demonstration_id": "demo", "eligibility_action": "ACCEPT", "messages": [{"role": "user", "content": "check a social media alert"}, {"role": "assistant", "content": "", "tool_call": {"raw_content": "{'name': 'weather-get_alerts', 'arguments': '{}'}"}}, {"role": "tool", "content": "ok"}], "review_checks": ["a"] * 6}]
     members = tmp_path / "membership.json"
     manifest = tmp_path / "manifest.json"
     members.write_text(json.dumps(membership), encoding="utf-8")

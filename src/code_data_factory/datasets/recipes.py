@@ -56,7 +56,7 @@ def prepare_recipe_candidate_pool(*, membership_path: Path, candidate_manifest_p
             "length_bin": "short" if len(typed_messages) <= 9 else "medium" if len(typed_messages) <= 15 else "long",
             "verification_strength": "strong" if len(member.get("review_checks", [])) >= 6 else "standard",
             "baseline_difficulty": "medium" if len(tool_names) <= 3 else "high",
-            "failure_types": ["CONSTRAINT_FAILURE"] if any(token in user_text for token in ("warning", "warnings", "alert", "error", "failure")) else [],
+            "failure_types": ["CONSTRAINT_FAILURE"] if "social media" in user_text else [],
             "source_observable": {"tool_call_count": len(tool_names), "message_count": len(typed_messages), "first_tool": tool_names[0]},
         })
     if not rows:
