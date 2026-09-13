@@ -12,7 +12,7 @@ import yaml
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_file
 
 from .batch_schedule import build_equal_schedule, load_sft_examples
-from .training_adapter import execute_sft_run
+from .training_adapter import execute_sft_run, release_cuda_memory
 
 
 class CalibrationError(ValueError):
@@ -148,6 +148,8 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
                     "reason": f"{type(error).__name__}: {error}",
                 }
             )
+        finally:
+            release_cuda_memory()
     selection = {
         "kind": "single-card-method-selection",
         "config_sha256": sha256_file(config_path),
@@ -180,20 +182,23 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
         ),
     ):
         started = time.monotonic()
-        run = execute_sft_run(
-            run_id=f"calibration-{name}",
-            experiment_id="calibration-two-recipe",
-            recipe=name,
-            seed=17,
-            dataset_id="external-calibration",
-            model_identity=model,
-            method=selected_method,
-            schedule_rows=rows,
-            planned_loss_tokens=effective_loss_tokens,
-            optimizer_steps=steps,
-            batch_size=batch_size,
-            output_dir=output_dir / "recipes" / name,
-        )
+        try:
+            run = execute_sft_run(
+                run_id=f"calibration-{name}",
+                experiment_id="calibration-two-recipe",
+                recipe=name,
+                seed=17,
+                dataset_id="external-calibration",
+                model_identity=model,
+                method=selected_method,
+                schedule_rows=rows,
+                planned_loss_tokens=effective_loss_tokens,
+                optimizer_steps=steps,
+                batch_size=batch_size,
+                output_dir=output_dir / "recipes" / name,
+            )
+        finally:
+            release_cuda_memory()
         recipe_runs.append(
             {
                 "recipe": name,

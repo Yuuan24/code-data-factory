@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import time
+from gc import collect
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,18 @@ from .batch_schedule import ScheduledExample
 
 class TrainingAdapterError(RuntimeError):
     """A real SFT update could not satisfy its declared evidence contract."""
+
+
+def release_cuda_memory() -> None:
+    """Release completed-run Python references and reusable CUDA allocations."""
+    collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except ImportError:
+        return
 
 
 def _method_model(*, method: str, model_id: str, revision: str) -> tuple[Any, dict[str, object]]:
@@ -217,7 +230,7 @@ def execute_sft_run(
     tokenizer.save_pretrained(checkpoint.as_posix())
     del trainer
     del model
-    torch.cuda.empty_cache()
+    release_cuda_memory()
     reloaded: Any
     if method == "full_finetune":
         reloaded = AutoModelForCausalLM.from_pretrained(checkpoint, torch_dtype=torch.bfloat16)
@@ -231,7 +244,10 @@ def execute_sft_run(
         )
         reloaded = PeftModel.from_pretrained(base, checkpoint)
     del reloaded
-    torch.cuda.empty_cache()
+    if method != "full_finetune":
+        del base
+    del tokenizer
+    release_cuda_memory()
     free_bytes, total_bytes = torch.cuda.mem_get_info(0)
     runtime = {
         "elapsed_seconds": round(time.monotonic() - started, 6),
