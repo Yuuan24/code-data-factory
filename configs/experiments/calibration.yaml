@@ -1,0 +1,33 @@
+calibration_version: sft-calibration-v1
+model:
+  model_id: Qwen/Qwen3-8B
+  model_revision: b968826d9c46dd6066d109eabc6255188de91218
+  tokenizer_revision: b968826d9c46dd6066d109eabc6255188de91218
+  template_sha256: a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8
+  thinking_mode: disabled
+sft_view: data/exports/external/training_examples.parquet
+feedback_recipe_draft: artifacts/evaluations/base-development/feedback-final/recipes/recipe_drafts.json
+method_order:
+  - full_finetune
+  - lora
+  - qlora
+schedule:
+  batch_size: 1
+  optimizer_steps: 3
+  max_context_tokens: 4096
+calibration_recipes:
+  # The first item of each recipe is the sole feedback-matched pair.  The two
+  # remaining fixed external examples make the three-step calibration exactly
+  # equal in whole-example loss tokens; this is calibration only, not a formal
+  random_matched:
+    - toucan-import:7a96ca26-d68a-5572-b735-3f131d1546a5
+    - toucan-import:3a0b2b58-a834-5d86-8feb-828544b5e430
+    - toucan-import:ae86fdc5-ecde-52ef-b494-2d3f80555774
+  closed_loop:
+    - toucan-import:0cf84c4e-3bef-5d3e-87f6-8981fbef57a2
+    - toucan-import:5e8b35d3-7b88-572c-8b8b-502901c86491
+    - toucan-import:baf41d1a-6568-5440-a10d-b4fa1d8b40d4
+cost_policy:
+  price_source: autodl-console-current-instance
+  cash_quote_required_before_formal_six-run-authorization: true
+  failure_reserve_fraction: 0.15

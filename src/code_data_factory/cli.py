@@ -17,6 +17,7 @@ from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_b
 from code_data_factory.contracts.tasks import TaskPackage
 from code_data_factory.datasets.build import build_draft
 from code_data_factory.datasets.build_input import BuildInputError, load_build_input
+from code_data_factory.datasets.calibration import CalibrationError, run_calibration
 from code_data_factory.datasets.export_sft import ExportError, export_sft_examples
 from code_data_factory.datasets.feedback import build_data_actions
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
@@ -204,6 +205,29 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
         if not isinstance(action_rows, list) or not isinstance(pairs, int):
             raise ValueError("feedback receipts are malformed")
         return _completed(command, run_id, [output / "findings" / "findings.json", output / "actions" / "data_actions.json", output / "recipes" / "recipe_drafts.json"], {"actions": len(action_rows), "pairs": pairs})
+    if parsed.command == ["experiment", "calibrate"]:
+        if parsed.config is None:
+            raise ValueError("experiment calibrate requires --config")
+        receipt = run_calibration(config_path=parsed.config, output_dir=output)
+        status = receipt.get("terminal_status")
+        if status == "GATE_FAILED":
+            return CommandEnvelope(
+                command,
+                run_id,
+                "GATE_FAILED",
+                "UNVERIFIED",
+                [str(output / "method_selection.json"), str(output / "schedule.json")],
+                {},
+                ["no configured method passed the single-card feasibility gate"],
+                [],
+            )
+        runs = receipt.get("recipe_runs")
+        return _completed(
+            command,
+            run_id,
+            [output / "method_selection.json", output / "manifest.json", output / "schedule.json"],
+            {"recipe_runs": len(runs) if isinstance(runs, list) else 0},
+        )
     if parsed.command == ["compatibility", "check"]:
         if parsed.profile is None or parsed.mode is None:
             raise ValueError("compatibility check requires --profile and --mode")
@@ -493,6 +517,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         ExportError,
         PublicationGateError,
         LocalSamplerError,
+        CalibrationError,
         RescoreError,
         TrlAdapterError,
         ValueError,
