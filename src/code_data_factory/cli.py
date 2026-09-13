@@ -23,6 +23,7 @@ from code_data_factory.datasets.publish import PublicationGateError, publish_dat
 from code_data_factory.datasets.recipes import build_recipe_drafts
 from code_data_factory.evaluation.findings import build_findings
 from code_data_factory.evaluation.interactive import run_evaluation
+from code_data_factory.evaluation.local_model import LocalTransformersExecutor
 from code_data_factory.evaluation.suites import build_tool_task_suite
 from code_data_factory.interaction.environment import check_environment
 from code_data_factory.interaction.local_sampler import LocalSamplerError, run_local_sampling_probe
@@ -168,15 +169,24 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
     if parsed.command == ["evaluate", "run"]:
         if parsed.suite is None or parsed.model is None:
             raise ValueError("evaluate run requires --suite and --model")
-        suite_path = build_tool_task_suite(parsed.suite, output_dir=output / "suite")
-        profile = json.loads(parsed.model.read_text(encoding="utf-8"))
-        if not isinstance(profile, dict) or profile.get("kind") != "FIXTURE_EVALUATOR":
-            raise ValueError("evaluate run requires a configured supported evaluator")
-        def fixture(task: object) -> dict[str, object]:
-            return {"value": task.expected_value, "unit": task.expected_unit, "evidence": list(task.document_ids)}  # type: ignore[attr-defined]
-        receipt = run_evaluation(suite_manifest=suite_path, split=parsed.split, executor=fixture, output_dir=output, model_identity={"model_id": profile.get("model_id"), "kind": profile["kind"]}, test_unlock=parsed.test_unlock)
         if parsed.split != "DEVELOPMENT":
-            raise ValueError("final test cannot be run by the fixture evaluator")
+            raise ValueError("final test is unavailable through this development evaluator")
+        suite_path = build_tool_task_suite(parsed.suite, output_dir=output / "suite")
+        profile = yaml.safe_load(parsed.model.read_text(encoding="utf-8"))
+        if not isinstance(profile, dict):
+            raise ValueError("evaluate run requires a configured supported evaluator")
+        if profile.get("kind") == "LOCAL_TRANSFORMERS":
+            executor = LocalTransformersExecutor(parsed.model)
+            try:
+                receipt = run_evaluation(suite_manifest=suite_path, split="DEVELOPMENT", executor=executor, output_dir=output, model_identity=executor.identity)
+            finally:
+                executor.close()
+        elif profile.get("kind") == "FIXTURE_EVALUATOR":
+            def fixture(task: object) -> dict[str, object]:
+                return {"value": task.expected_value, "unit": task.expected_unit, "evidence": list(task.document_ids)}  # type: ignore[attr-defined]
+            receipt = run_evaluation(suite_manifest=suite_path, split="DEVELOPMENT", executor=fixture, output_dir=output, model_identity={"model_id": profile.get("model_id"), "kind": profile["kind"]})
+        else:
+            raise ValueError("evaluate run requires a configured supported evaluator")
         task_count = receipt.get("fixed_denominator")
         if not isinstance(task_count, int):
             raise ValueError("evaluation receipt has invalid denominator")

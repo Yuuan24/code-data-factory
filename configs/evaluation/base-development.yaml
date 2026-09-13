@@ -1,0 +1,7 @@
+kind: LOCAL_TRANSFORMERS
+model_id: Qwen/Qwen3-8B
+model_revision: b968826d9c46dd6066d109eabc6255188de91218
+tokenizer_revision: b968826d9c46dd6066d109eabc6255188de91218
+template_sha256: a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8
+max_model_calls: 4
+max_completion_tokens: 128

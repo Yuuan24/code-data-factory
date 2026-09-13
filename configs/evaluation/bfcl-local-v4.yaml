@@ -1,6 +1,8 @@
 benchmark: BFCL-V4
 official_repository: https://github.com/ShishirPatil/gorilla.git
 official_commit: f7cf7359b7ac615a0b294831c5ba2bc95ee4a000
+official_archive_url: https://codeload.github.com/ShishirPatil/gorilla/tar.gz/f7cf7359b7ac615a0b294831c5ba2bc95ee4a000
+official_archive_sha256: c57136de766f16462414b86e0b3892c751e10f47db7e34fa84e2d7c4571f54de
 package: bfcl-eval==2025.12.17
 license: Apache-2.0
 categories:
