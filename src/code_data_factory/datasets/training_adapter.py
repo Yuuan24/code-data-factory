@@ -47,7 +47,14 @@ def _method_model(*, method: str, model_id: str, revision: str) -> tuple[Any, di
             target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
         )
         model = get_peft_model(model, lora)
-        method_config["peft"] = lora.to_dict()  # type: ignore[no-untyped-call]
+        method_config["peft"] = {
+            "r": 16,
+            "lora_alpha": 32,
+            "lora_dropout": 0.0,
+            "bias": "none",
+            "task_type": "CAUSAL_LM",
+            "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj"],
+        }
     elif method != "full_finetune":
         raise TrainingAdapterError(f"unsupported training method: {method}")
     return model, method_config
