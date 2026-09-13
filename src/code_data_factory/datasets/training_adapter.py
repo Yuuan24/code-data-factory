@@ -127,6 +127,7 @@ def execute_sft_run(
     planned_loss_tokens: int,
     optimizer_steps: int,
     batch_size: int,
+    gradient_checkpointing: bool,
     output_dir: Path,
 ) -> TrainingRun:
     """Run the upstream trainer once and retain exact observed loss-token evidence."""
@@ -176,6 +177,12 @@ def execute_sft_run(
         model_id=model_identity["model_id"],
         revision=model_identity["model_revision"],
     )
+    if gradient_checkpointing:
+        model.config.use_cache = False
+        model.gradient_checkpointing_enable()
+        if method in {"lora", "qlora"}:
+            model.enable_input_require_grads()
+    method_config["gradient_checkpointing"] = gradient_checkpointing
     arguments = TrainingArguments(
         output_dir=output_dir.as_posix(),
         max_steps=optimizer_steps,
@@ -183,6 +190,7 @@ def execute_sft_run(
         gradient_accumulation_steps=1,
         learning_rate=2e-5,
         bf16=True,
+        gradient_checkpointing=gradient_checkpointing,
         logging_steps=1,
         save_strategy="no",
         report_to="none",

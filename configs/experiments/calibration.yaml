@@ -15,6 +15,7 @@ schedule:
   batch_size: 1
   optimizer_steps: 3
   max_context_tokens: 4096
+  gradient_checkpointing: true
 calibration_recipes:
   # The first item of each recipe is the sole feedback-matched pair.  The two
   # remaining fixed external examples make the three-step calibration exactly

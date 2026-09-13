@@ -81,6 +81,7 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
         )
     batch_size_raw, steps_raw = schedule.get("batch_size"), schedule.get("optimizer_steps")
     max_context_raw = schedule.get("max_context_tokens")
+    gradient_checkpointing = schedule.get("gradient_checkpointing")
     if (
         not isinstance(batch_size_raw, int)
         or not isinstance(steps_raw, int)
@@ -88,6 +89,7 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
         or batch_size_raw < 1
         or steps_raw < 1
         or max_context_raw < 1
+        or not isinstance(gradient_checkpointing, bool)
     ):
         raise CalibrationError("calibration schedule values must be positive integers")
     batch_size, steps, max_context = int(batch_size_raw), int(steps_raw), int(max_context_raw)
@@ -122,6 +124,7 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
                 planned_loss_tokens=sum(row.loss_tokens for row in probe_rows),
                 optimizer_steps=steps,
                 batch_size=batch_size,
+                gradient_checkpointing=gradient_checkpointing,
                 output_dir=attempt_dir,
             )
             runtime = json.loads(
@@ -195,6 +198,7 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
                 planned_loss_tokens=effective_loss_tokens,
                 optimizer_steps=steps,
                 batch_size=batch_size,
+                gradient_checkpointing=gradient_checkpointing,
                 output_dir=output_dir / "recipes" / name,
             )
         finally:
@@ -220,6 +224,7 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
         "equal_effective_loss_tokens": effective_loss_tokens,
         "equal_optimizer_steps": steps,
         "batch_size": batch_size,
+        "gradient_checkpointing": gradient_checkpointing,
         "recipe_runs": recipe_runs,
         "throughput_loss_tokens_per_second": (2 * effective_loss_tokens) / total_seconds
         if total_seconds
