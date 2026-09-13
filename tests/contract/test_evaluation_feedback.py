@@ -22,6 +22,29 @@ def _suite(tmp_path: Path) -> Path:
     return build_tool_task_suite(config, output_dir=tmp_path / "suite")
 
 
+def _bfcl_development_receipt(tmp_path: Path) -> Path:
+    receipt = {
+        "kind": "bfcl-v4-development-evaluation",
+        "split": "DEVELOPMENT",
+        "terminal_status": "COMPLETED",
+        "official_commit": "f7cf7359b7ac615a0b294831c5ba2bc95ee4a000",
+        "source_method": "GITHUB_EXACT_COMMIT_ARCHIVE",
+        "official_archive_sha256": "c57136de766f16462414b86e0b3892c751e10f47db7e34fa84e2d7c4571f54de",
+        "runner_package": "bfcl-eval==2025.12.17",
+        "selected_task_count": 4,
+        "infrastructure_failure_count": 0,
+        "full_bfcl_score_claimed": False,
+        "protocol_deviations": ["fixture subset"],
+        "categories": {
+            "multi_turn_base": {"selected_ids": ["multi_turn_base_0", "multi_turn_base_1"], "selected_count": 2, "accuracy": 0.0, "result_sha256": "a" * 64, "score_sha256": "b" * 64},
+            "irrelevance": {"selected_ids": ["irrelevance_0", "irrelevance_1"], "selected_count": 2, "accuracy": 1.0, "result_sha256": "c" * 64, "score_sha256": "d" * 64},
+        },
+    }
+    path = tmp_path / "bfcl-development.json"
+    path.write_text(json.dumps(receipt), encoding="utf-8")
+    return path
+
+
 def test_suite_freezes_disjoint_groups_and_required_coverage(tmp_path: Path) -> None:
     suite = load_suite(_suite(tmp_path))
     assert len(suite.development) == len(suite.test) == 200
@@ -87,6 +110,8 @@ def test_findings_actions_and_recipes_keep_test_out_and_bind_every_targeted_sele
     pool_path.write_text(json.dumps(pool), encoding="utf-8")
     actions = build_data_actions(
         evaluation_path=tmp_path / "evaluation" / "evaluation_run.json",
+        external_evaluation_path=_bfcl_development_receipt(tmp_path),
+        external_config_path=Path("configs/evaluation/bfcl-local-v4.yaml"),
         findings_path=tmp_path / "findings" / "findings.json",
         candidate_pool_path=pool_path,
         output_dir=tmp_path / "actions",
@@ -96,7 +121,20 @@ def test_findings_actions_and_recipes_keep_test_out_and_bind_every_targeted_sele
     recipes = build_recipe_drafts(actions_path=tmp_path / "actions" / "data_actions.json", candidate_pool_path=pool_path, output_dir=tmp_path / "recipes")
     assert recipes["paired_member_count"] > 0
     with pytest.raises(FeedbackError, match="development"):
-        build_data_actions(evaluation_path=tmp_path / "suite" / "suite_manifest.json", findings_path=tmp_path / "findings" / "findings.json", candidate_pool_path=pool_path, output_dir=tmp_path / "bad", policy_path=Path("configs/quality/feedback.yaml"))
+        build_data_actions(evaluation_path=tmp_path / "suite" / "suite_manifest.json", external_evaluation_path=_bfcl_development_receipt(tmp_path), external_config_path=Path("configs/evaluation/bfcl-local-v4.yaml"), findings_path=tmp_path / "findings" / "findings.json", candidate_pool_path=pool_path, output_dir=tmp_path / "bad", policy_path=Path("configs/quality/feedback.yaml"))
+
+
+def test_feedback_rejects_missing_or_non_development_bfcl_terminal_receipt(tmp_path: Path) -> None:
+    suite = _suite(tmp_path)
+    run_evaluation(suite_manifest=suite, split="DEVELOPMENT", executor=lambda _: {}, output_dir=tmp_path / "evaluation", model_identity={"model_id": "fixture"})
+    build_findings(tmp_path / "evaluation" / "evaluation_run.json", output_dir=tmp_path / "findings")
+    pool_path = Path("tests/fixtures/evaluation/candidate_pool.json")
+    bad = _bfcl_development_receipt(tmp_path)
+    payload = json.loads(bad.read_text(encoding="utf-8"))
+    payload["split"] = "TEST"
+    bad.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(FeedbackError, match="BFCL"):
+        build_data_actions(evaluation_path=tmp_path / "evaluation" / "evaluation_run.json", external_evaluation_path=bad, external_config_path=Path("configs/evaluation/bfcl-local-v4.yaml"), findings_path=tmp_path / "findings" / "findings.json", candidate_pool_path=pool_path, output_dir=tmp_path / "actions", policy_path=Path("configs/quality/feedback.yaml"))
 
 
 def test_evaluate_and_feedback_cli_are_wired_and_test_cannot_be_unlocked_by_split_flag(tmp_path: Path, capsys: object) -> None:
@@ -106,6 +144,7 @@ def test_evaluate_and_feedback_cli_are_wired_and_test_cannot_be_unlocked_by_spli
     assert main(["--json", "--suite", "configs/evaluation/tool-tasks.yaml", "--model", str(model), "--output-dir", str(output), "evaluate", "run"]) == 0
     assert json.loads(capsys.readouterr().out)["counts"] == {"tasks": 200}
     assert main(["--json", "--suite", "configs/evaluation/tool-tasks.yaml", "--model", str(model), "--split", "TEST", "--output-dir", str(tmp_path / "test"), "evaluate", "run"]) == EXIT_INPUT_ERROR
+    assert main(["--json", "--evaluation", str(output / "evaluation_run.json"), "--pool", "tests/fixtures/evaluation/candidate_pool.json", "--policy", "configs/quality/feedback.yaml", "--output-dir", str(tmp_path / "feedback"), "feedback", "build"]) == EXIT_INPUT_ERROR
 
 
 def test_recipe_pool_profile_uses_only_frozen_external_membership(tmp_path: Path) -> None:

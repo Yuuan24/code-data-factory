@@ -98,6 +98,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--suite", type=Path)
     parser.add_argument("--model", type=Path)
     parser.add_argument("--evaluation", type=Path)
+    parser.add_argument("--external-evaluation", type=Path)
+    parser.add_argument("--external-config", type=Path)
     parser.add_argument("--pool", type=Path)
     parser.add_argument("--actions", type=Path)
     parser.add_argument("--split", choices=("DEVELOPMENT", "TEST"), default="DEVELOPMENT")
@@ -192,11 +194,11 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
             raise ValueError("evaluation receipt has invalid denominator")
         return _completed(command, run_id, [suite_path, output / "evaluation_run.json"], {"tasks": task_count})
     if parsed.command == ["feedback", "build"]:
-        if parsed.evaluation is None or parsed.pool is None or parsed.policy is None:
-            raise ValueError("feedback build requires --evaluation, --pool, and --policy")
+        if parsed.evaluation is None or parsed.external_evaluation is None or parsed.external_config is None or parsed.pool is None or parsed.policy is None:
+            raise ValueError("feedback build requires --evaluation, --external-evaluation, --external-config, --pool, and --policy")
         findings = build_findings(parsed.evaluation, output_dir=output / "findings")
         del findings
-        actions = build_data_actions(evaluation_path=parsed.evaluation, findings_path=output / "findings" / "findings.json", candidate_pool_path=parsed.pool, output_dir=output / "actions", policy_path=parsed.policy)
+        actions = build_data_actions(evaluation_path=parsed.evaluation, external_evaluation_path=parsed.external_evaluation, external_config_path=parsed.external_config, findings_path=output / "findings" / "findings.json", candidate_pool_path=parsed.pool, output_dir=output / "actions", policy_path=parsed.policy)
         recipes = build_recipe_drafts(actions_path=output / "actions" / "data_actions.json", candidate_pool_path=parsed.pool, output_dir=output / "recipes")
         action_rows, pairs = actions.get("actions"), recipes.get("paired_member_count")
         if not isinstance(action_rows, list) or not isinstance(pairs, int):

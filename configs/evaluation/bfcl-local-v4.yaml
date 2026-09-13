@@ -8,9 +8,17 @@ license: Apache-2.0
 categories:
   - multi_turn
   - irrelevance
+development_subset:
+  multi_turn_base:
+    - multi_turn_base_0
+    - multi_turn_base_1
+  irrelevance:
+    - irrelevance_0
+    - irrelevance_1
 excluded_categories:
   - executable
   - live
 protocol_deviations:
   - Local subset excludes categories that require untrusted-code execution or external live services.
+  - Development reporting is restricted to the four listed IDs and never claims a full BFCL score.
 require_isolated_untrusted_execution: true

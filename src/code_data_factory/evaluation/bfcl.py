@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 import tarfile
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -13,6 +15,56 @@ from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_b
 
 class BfclError(ValueError):
     """The supplied official BFCL runner cannot prove its frozen provenance."""
+
+
+def _object(path: Path, label: str) -> dict[str, Any]:
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise BfclError(f"BFCL {label} must be an object")
+    return value
+
+
+def validate_bfcl_development_receipt(*, receipt_path: Path, config_path: Path) -> dict[str, Any]:
+    """Fail closed unless the frozen local BFCL development subset completed."""
+    receipt = _object(receipt_path, "development receipt")
+    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    if not isinstance(config, dict):
+        raise BfclError("BFCL config must be an object")
+    subset = config.get("development_subset")
+    if not isinstance(subset, dict) or not all(isinstance(ids, list) and ids for ids in subset.values()):
+        raise BfclError("BFCL config must freeze a non-empty development subset")
+    expected = {
+        "kind": "bfcl-v4-development-evaluation",
+        "split": "DEVELOPMENT",
+        "terminal_status": "COMPLETED",
+        "official_commit": config.get("official_commit"),
+        "official_archive_sha256": config.get("official_archive_sha256"),
+        "runner_package": config.get("package"),
+        "full_bfcl_score_claimed": False,
+        "infrastructure_failure_count": 0,
+    }
+    if any(receipt.get(field) != value for field, value in expected.items()):
+        raise BfclError("BFCL development receipt is not the frozen completed development run")
+    categories = receipt.get("categories")
+    if not isinstance(categories, dict) or set(categories) != set(subset):
+        raise BfclError("BFCL development receipt categories do not match the frozen subset")
+    selected_total = 0
+    for category, ids in subset.items():
+        result = categories.get(category)
+        if not isinstance(category, str) or not isinstance(ids, list) or not isinstance(result, dict):
+            raise BfclError("BFCL development receipt has malformed category evidence")
+        if result.get("selected_ids") != ids or result.get("selected_count") != len(ids):
+            raise BfclError("BFCL development receipt task IDs do not match the frozen subset")
+        if not isinstance(result.get("accuracy"), (int, float)) or not 0 <= result["accuracy"] <= 1:
+            raise BfclError("BFCL development receipt has invalid category accuracy")
+        if any(not isinstance(result.get(field), str) or len(result[field]) != 64 for field in ("result_sha256", "score_sha256")):
+            raise BfclError("BFCL development receipt lacks result or score hashes")
+        selected_total += len(ids)
+    if receipt.get("selected_task_count") != selected_total:
+        raise BfclError("BFCL development receipt denominator does not match the frozen subset")
+    if not isinstance(receipt.get("protocol_deviations"), list):
+        raise BfclError("BFCL development receipt must state protocol deviations")
+    return receipt
 
 
 def freeze_bfcl_subset(*, config_path: Path, output_dir: Path, checkout: Path | None = None, archive_path: Path | None = None) -> dict[str, object]:

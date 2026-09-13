@@ -179,20 +179,20 @@ T103–T108 是本次新增、尚未执行的工作。原研究中的 Toucan 审
 
 ### Tests
 
-- [ ] T060 [US3] 在 `tests/contract/test_evaluation_feedback.py` 验证固定分母、失败重试、开发/test 权限、原因假设与事实分离、目标干预不被匹配消除，并拒绝最终测试引用进入反馈。（依赖：T108）
+- [X] T060 [US3] 在 `tests/contract/test_evaluation_feedback.py` 验证固定分母、失败重试、开发/test 权限、原因假设与事实分离、目标干预不被匹配消除，并拒绝最终测试引用进入反馈。（依赖：T108）
 
 ### Implementation
 
-- [ ] T061 [US3] 在 `src/code_data_factory/evaluation/suites.py`、`configs/evaluation/tool-tasks.yaml` 构建开发/最终测试各至少 200 任务、三个族各至少 40、测试至少 50 未见组合且至少 20 独立来源—模板连通组；冻结标识/私有参考与切分登记，组不足阻断归因；工具名可不同，但与外部训练数据的能力语义对应须可解释，外部测试和本地任务均不流入 SFT 池。（依赖：T045、T060）
-- [ ] T062 [US3] 在 `src/code_data_factory/evaluation/interactive.py` 实现实际逐步执行评测和 TaskSuccess@1（一次完整尝试成功率），固定全分母与系统故障最多一次原配置重试，另报有效执行覆盖、恢复/未见组合/成本/约束；未解决系统故障阻断因果结论。（依赖：T061）
-- [ ] T063 [US3] 在 `src/code_data_factory/evaluation/bfcl.py`、`configs/evaluation/bfcl-local-v4.yaml` 复用 BFCL 官方评测程序，解析 `f7cf735` 完整提交及数据/许可、冻结本地多轮/无关工具子集和协议偏离；需执行不可信代码的子集隔离不通过则拒绝。（依赖：T062）
-- [ ] T064 [US3] 以 T057 模型运行项目及外部开发评测，保存 `artifacts/evaluations/base-development/` 和候选池事前难度估计，模型/模板/工具版本清楚；此阶段不解锁最终 test。（依赖：T046、T057、T063）
-- [ ] T065 [US3] 在 `src/code_data_factory/evaluation/findings.py`、`src/code_data_factory/evaluation/findings.sql` 使用 DuckDB 汇总错误/依赖/上下文切片，形成 Finding 的原始证据、假设、反证及置信程度，不称为已证明因果。（依赖：T064）
-- [ ] T066 [US3] 在 `src/code_data_factory/datasets/feedback.py`、`configs/quality/feedback.yaml` 实现 DataAction/复验关系和发现驱动选择；首轮只在同一冻结外部合格池重选，新增外部来源/修复先重过治理进入下一候选池版本，不单独混入处理组，不启动训练数据自采样。（依赖：T065）
-- [ ] T067 [US3] 在 `src/code_data_factory/datasets/recipes.py` 从外部合格池构建 RandomMatched 与 ClosedLoop 草稿，匹配来源/粗任务族/深度/长度/验证强度/基线难度，保留失败类型覆盖差异，保存联合支持、共同剔除与平衡报告至 `data/recipes/main/`。（依赖：T047、T066）
-- [ ] T068 [US3] 在 `src/code_data_factory/cli.py` 接入 `evaluate run`、`feedback build`，确保正式测试解锁依赖预登记与数据冻结，不以命令参数绕过；评测和反馈均出明细与产物清单。（依赖：T067）
-- [ ] T069 [US3] 执行开发评测夹具→发现→选择配方→发布草稿的集成验证，保存 `artifacts/checkpoints/us3-software.json`，验证每次非随机选择都有 finding/action，最终 test 内容与标识不进入反馈。（依赖：T068）
-- [ ] T070 [US3] 在本机私有决策记录（不提交）中记录 US3 软件里程碑和 `artifacts/checkpoints/us3-software.json`，明确 SC-008 的真实训练复评依赖 T079/T083/T084，尚不能关闭完整反馈验收。（依赖：T069）
+- [X] T061 [US3] 在 `src/code_data_factory/evaluation/suites.py`、`configs/evaluation/tool-tasks.yaml` 构建开发/最终测试各至少 200 任务、三个族各至少 40、测试至少 50 未见组合且至少 20 独立来源—模板连通组；冻结标识/私有参考与切分登记，组不足阻断归因；工具名可不同，但与外部训练数据的能力语义对应须可解释，外部测试和本地任务均不流入 SFT 池。（依赖：T045、T060）
+- [X] T062 [US3] 在 `src/code_data_factory/evaluation/interactive.py` 实现实际逐步执行评测和 TaskSuccess@1（一次完整尝试成功率），固定全分母与系统故障最多一次原配置重试，另报有效执行覆盖、恢复/未见组合/成本/约束；未解决系统故障阻断因果结论。（依赖：T061）
+- [X] T063 [US3] 在 `src/code_data_factory/evaluation/bfcl.py`、`configs/evaluation/bfcl-local-v4.yaml` 复用 BFCL 官方评测程序，解析 `f7cf735` 完整提交及数据/许可、冻结本地多轮/无关工具子集和协议偏离；需执行不可信代码的子集隔离不通过则拒绝。（依赖：T062）
+- [X] T064 [US3] 以 T057 模型运行项目及外部开发评测，保存 `artifacts/evaluations/base-development/` 和候选池事前难度估计，模型/模板/工具版本清楚；此阶段不解锁最终 test。（依赖：T046、T057、T063）
+- [X] T065 [US3] 在 `src/code_data_factory/evaluation/findings.py`、`src/code_data_factory/evaluation/findings.sql` 使用 DuckDB 汇总错误/依赖/上下文切片，形成 Finding 的原始证据、假设、反证及置信程度，不称为已证明因果。（依赖：T064）
+- [X] T066 [US3] 在 `src/code_data_factory/datasets/feedback.py`、`configs/quality/feedback.yaml` 实现 DataAction/复验关系和发现驱动选择；首轮只在同一冻结外部合格池重选，新增外部来源/修复先重过治理进入下一候选池版本，不单独混入处理组，不启动训练数据自采样。（依赖：T065）
+- [X] T067 [US3] 在 `src/code_data_factory/datasets/recipes.py` 从外部合格池构建 RandomMatched 与 ClosedLoop 草稿，匹配来源/粗任务族/深度/长度/验证强度/基线难度，保留失败类型覆盖差异，保存联合支持、共同剔除与平衡报告至 `data/recipes/main/`。（依赖：T047、T066）
+- [X] T068 [US3] 在 `src/code_data_factory/cli.py` 接入 `evaluate run`、`feedback build`，确保正式测试解锁依赖预登记与数据冻结，不以命令参数绕过；评测和反馈均出明细与产物清单。（依赖：T067）
+- [X] T069 [US3] 执行开发评测夹具→发现→选择配方→发布草稿的集成验证，保存 `artifacts/checkpoints/us3-software.json`，验证每次非随机选择都有 finding/action，最终 test 内容与标识不进入反馈。（依赖：T068）
+- [X] T070 [US3] 在本机私有决策记录（不提交）中记录 US3 软件里程碑和 `artifacts/checkpoints/us3-software.json`，明确 SC-008 的真实训练复评依赖 T079/T083/T084，尚不能关闭完整反馈验收。（依赖：T069）
 
 **Checkpoint**: 反馈软件与实际开发发现可交付；US3 完整训练闭环稍后 T084 回填。
 
