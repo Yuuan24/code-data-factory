@@ -10,6 +10,9 @@ from typing import Any
 import yaml
 
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_file
+from code_data_factory.evaluation.interactive import run_evaluation
+from code_data_factory.evaluation.local_model import LocalTransformersExecutor
+from code_data_factory.evaluation.suites import build_tool_task_suite
 
 from .batch_schedule import build_equal_schedule, load_sft_examples
 from .training_adapter import execute_sft_run, release_cuda_memory
@@ -63,10 +66,68 @@ def _recipe_rows(config: dict[str, Any], *, examples_path: Path) -> tuple[list[A
     return values["random_matched"], values["closed_loop"]
 
 
+def _interaction_config(config: dict[str, Any]) -> tuple[Path, tuple[str, ...], int, int]:
+    value = config.get("calibration_interaction")
+    if not isinstance(value, dict):
+        raise CalibrationError("calibration requires a frozen interaction probe")
+    suite, task_ids = value.get("suite_config"), value.get("development_task_ids")
+    max_calls, max_tokens = value.get("max_model_calls"), value.get("max_completion_tokens")
+    if (
+        not isinstance(suite, str)
+        or not isinstance(task_ids, list)
+        or not task_ids
+        or not all(isinstance(item, str) and item for item in task_ids)
+        or len(set(task_ids)) != len(task_ids)
+        or not isinstance(max_calls, int)
+        or max_calls < 1
+        or not isinstance(max_tokens, int)
+        or max_tokens < 1
+    ):
+        raise CalibrationError("calibration interaction probe is invalid")
+    return Path(suite), tuple(task_ids), max_calls, max_tokens
+
+
+def _run_interaction_probe(
+    *,
+    model: dict[str, str],
+    suite_config: Path,
+    task_ids: tuple[str, ...],
+    max_calls: int,
+    max_tokens: int,
+    checkpoint: Path,
+    output_dir: Path,
+) -> dict[str, object]:
+    profile = {
+        "kind": "LOCAL_TRANSFORMERS",
+        **model,
+        "adapter_checkpoint": str(checkpoint.resolve()),
+        "max_model_calls": max_calls,
+        "max_completion_tokens": max_tokens,
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = output_dir / "model_profile.yaml"
+    profile_path.write_text(yaml.safe_dump(profile, sort_keys=True), encoding="utf-8")
+    suite_path = build_tool_task_suite(suite_config, output_dir=output_dir / "suite")
+    executor = LocalTransformersExecutor(profile_path)
+    try:
+        return run_evaluation(
+            suite_manifest=suite_path,
+            split="DEVELOPMENT",
+            executor=executor,
+            output_dir=output_dir,
+            model_identity=executor.identity,
+            task_ids=task_ids,
+        )
+    finally:
+        executor.close()
+        release_cuda_memory()
+
+
 def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]:
     """First select a viable method, then measure each equal-budget recipe once."""
     config = _load_config(config_path)
     model = _model(config)
+    suite_config, interaction_task_ids, max_calls, max_tokens = _interaction_config(config)
     source = config.get("sft_view")
     schedule = config.get("schedule")
     methods = config.get("method_order")
@@ -210,6 +271,30 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
                 "elapsed_seconds": round(time.monotonic() - started, 6),
             }
         )
+    interaction_runs: list[dict[str, object]] = []
+    for item in recipe_runs:
+        recipe = item["recipe"]
+        if not isinstance(recipe, str):
+            raise CalibrationError("calibration recipe identifier is invalid")
+        evaluation_dir = output_dir / "recipes" / recipe / "interaction"
+        receipt = _run_interaction_probe(
+            model=model,
+            suite_config=suite_config,
+            task_ids=interaction_task_ids,
+            max_calls=max_calls,
+            max_tokens=max_tokens,
+            checkpoint=output_dir / "recipes" / recipe / "checkpoint",
+            output_dir=evaluation_dir,
+        )
+        interaction_runs.append(
+            {
+                "recipe": recipe,
+                "evaluation_ref": str((evaluation_dir / "evaluation_run.json").relative_to(output_dir)),
+                "evaluation_sha256": sha256_file(evaluation_dir / "evaluation_run.json"),
+                "fixed_denominator": receipt["fixed_denominator"],
+                "unresolved_infrastructure_count": receipt["unresolved_infrastructure_count"],
+            }
+        )
     total_seconds = sum(
         float(item["elapsed_seconds"])
         for item in recipe_runs
@@ -226,14 +311,17 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
         "batch_size": batch_size,
         "gradient_checkpointing": gradient_checkpointing,
         "recipe_runs": recipe_runs,
+        "interaction_runs": interaction_runs,
         "throughput_loss_tokens_per_second": (2 * effective_loss_tokens) / total_seconds
         if total_seconds
         else None,
         "six_run_seconds_prediction": total_seconds * 3,
+        "six_run_seconds_with_failure_reserve": total_seconds * 3 * 1.15,
         "failure_reserve_fraction": 0.15,
         "limitations": [
             "Calibration scores are not used for method or hyperparameter selection.",
             "This calibration contains only one feedback pair and cannot support confirmation attribution.",
+            "Interaction checks use three frozen development tasks and are not formal model-value results.",
         ],
         "evidence_level": "EXECUTION_VALIDATED",
     }

@@ -32,3 +32,11 @@ cost_policy:
   price_source: autodl-console-current-instance
   cash_quote_required_before_formal_six-run-authorization: true
   failure_reserve_fraction: 0.15
+calibration_interaction:
+  suite_config: configs/evaluation/tool-tasks.yaml
+  development_task_ids:
+    - tooltask-development-000
+    - tooltask-development-001
+    - tooltask-development-002
+  max_model_calls: 4
+  max_completion_tokens: 128

@@ -9,6 +9,7 @@ from typing import Any
 
 import yaml
 
+from code_data_factory.contracts.artifacts import sha256_file
 from code_data_factory.interaction.tools import RestrictedTools, ToolInputError
 
 from .interactive import InfrastructureFailure
@@ -45,9 +46,23 @@ class LocalTransformersExecutor:
         self._model: Any = AutoModelForCausalLM.from_pretrained(
             profile["model_id"], revision=profile["model_revision"], torch_dtype=torch.bfloat16, device_map="cuda:0"
         )
-        self._model.eval()  # type: ignore[no-untyped-call]
+        adapter_checkpoint = profile.get("adapter_checkpoint")
+        if adapter_checkpoint is not None:
+            if not isinstance(adapter_checkpoint, str) or not Path(adapter_checkpoint).is_dir():
+                raise LocalEvaluationError("local evaluation adapter checkpoint is unavailable")
+            try:
+                from peft import PeftModel
+            except ImportError as error:
+                raise LocalEvaluationError("adapter evaluation requires PEFT") from error
+            self._model = PeftModel.from_pretrained(self._model, adapter_checkpoint)
+        self._model.eval()
         self._identity = {key: profile[key] for key in required}
         self._identity["kind"] = profile["kind"]
+        if isinstance(adapter_checkpoint, str):
+            weights = Path(adapter_checkpoint) / "adapter_model.safetensors"
+            if not weights.is_file():
+                raise LocalEvaluationError("local evaluation adapter weights are unavailable")
+            self._identity["adapter_checkpoint_sha256"] = sha256_file(weights)
         self._max_calls = max_calls
         self._max_tokens = max_tokens
 
