@@ -12,7 +12,7 @@ import yaml
 from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_file
 
 from .batch_schedule import build_equal_schedule, load_sft_examples
-from .training_adapter import TrainingAdapterError, execute_sft_run
+from .training_adapter import execute_sft_run
 
 
 class CalibrationError(ValueError):
@@ -140,7 +140,7 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
             if margin:
                 selected_method, selected_run = method, run.model_dump(mode="json")
                 break
-        except (TrainingAdapterError, RuntimeError, OSError) as error:
+        except Exception as error:  # noqa: BLE001 - retain every upstream method-gate failure.
             selection_attempts.append(
                 {
                     "method": method,

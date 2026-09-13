@@ -173,7 +173,7 @@ def execute_sft_run(
         import mlflow
     except ImportError as error:
         raise TrainingAdapterError("SFT adapter requires MLflow for run indexing") from error
-    mlflow.set_tracking_uri((output_dir / "mlruns").resolve().as_uri())
+    mlflow.set_tracking_uri(f"sqlite:///{(output_dir / 'mlflow.db').resolve()}")
     mlflow.set_experiment("code-data-factory-sft-calibration")
     trainer = Trainer(
         model=model,
