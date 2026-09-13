@@ -7,7 +7,7 @@ import pytest
 
 from code_data_factory.cli import EXIT_INPUT_ERROR, main
 from code_data_factory.datasets.feedback import FeedbackError, build_data_actions
-from code_data_factory.datasets.recipes import build_recipe_drafts
+from code_data_factory.datasets.recipes import build_recipe_drafts, prepare_recipe_candidate_pool
 from code_data_factory.evaluation.findings import build_findings
 from code_data_factory.evaluation.interactive import InfrastructureFailure, run_evaluation
 from code_data_factory.evaluation.suites import SuiteError, build_tool_task_suite, load_suite
@@ -106,3 +106,14 @@ def test_evaluate_and_feedback_cli_are_wired_and_test_cannot_be_unlocked_by_spli
     assert main(["--json", "--suite", "configs/evaluation/tool-tasks.yaml", "--model", str(model), "--output-dir", str(output), "evaluate", "run"]) == 0
     assert json.loads(capsys.readouterr().out)["counts"] == {"tasks": 200}
     assert main(["--json", "--suite", "configs/evaluation/tool-tasks.yaml", "--model", str(model), "--split", "TEST", "--output-dir", str(tmp_path / "test"), "evaluate", "run"]) == EXIT_INPUT_ERROR
+
+
+def test_recipe_pool_profile_uses_only_frozen_external_membership(tmp_path: Path) -> None:
+    membership = [{"demonstration_id": "demo", "eligibility_action": "ACCEPT", "messages": [{"role": "user", "content": "check alert"}, {"role": "assistant", "content": "", "tool_call": {"raw_content": "{'name': 'weather-get_alerts', 'arguments': '{}'}"}}, {"role": "tool", "content": "ok"}], "review_checks": ["a"] * 6}]
+    members = tmp_path / "membership.json"
+    manifest = tmp_path / "manifest.json"
+    members.write_text(json.dumps(membership), encoding="utf-8")
+    manifest.write_text(json.dumps({"candidate_kind": "EXTERNAL_DEMONSTRATION", "logical_content_hash": "pool-v1"}), encoding="utf-8")
+    rows = prepare_recipe_candidate_pool(membership_path=members, candidate_manifest_path=manifest, output_path=tmp_path / "profile.json")
+    assert rows[0]["candidate_pool_version"] == "pool-v1"
+    assert rows[0]["failure_types"] == ["CONSTRAINT_FAILURE"]
