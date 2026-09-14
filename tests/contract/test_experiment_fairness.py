@@ -80,6 +80,9 @@ def test_schedule_requires_equal_whole_targets_and_never_uses_test_or_padding(
     )
     assert receipt["effective_loss_tokens"] == 2
     assert receipt["no_target_padding"] is True
+    assert receipt["equal_input_compute_budget"] is True
+    assert receipt["fixed_context_tokens"] == 2
+    assert receipt["padded_input_tokens_per_recipe"] == 4
     assert "test" not in json.dumps(receipt).lower()
     with pytest.raises(BatchScheduleError, match="exactly match"):
         build_equal_schedule(

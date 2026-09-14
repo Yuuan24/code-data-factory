@@ -73,11 +73,11 @@ def _method_model(*, method: str, model_id: str, revision: str) -> tuple[Any, di
     return model, method_config
 
 
-def _collator(tokenizer: Any) -> Any:
+def _collator(tokenizer: Any, *, fixed_context_tokens: int) -> Any:
     def collate(rows: list[dict[str, Any]]) -> dict[str, Any]:
         import torch
 
-        max_length = max(len(row["input_ids"]) for row in rows)
+        max_length = fixed_context_tokens
         pad_id = (
             tokenizer.pad_token_id if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
         )
@@ -85,6 +85,8 @@ def _collator(tokenizer: Any) -> Any:
         for row in rows:
             tokens = row["input_ids"]
             loss_mask = row["loss_mask"]
+            if len(tokens) > max_length:
+                raise TrainingAdapterError("scheduled example exceeds fixed context budget")
             padding = max_length - len(tokens)
             input_ids.append(tokens + [pad_id] * padding)
             attention_mask.append([1] * len(tokens) + [0] * padding)
@@ -127,6 +129,7 @@ def execute_sft_run(
     planned_loss_tokens: int,
     optimizer_steps: int,
     batch_size: int,
+    fixed_context_tokens: int,
     gradient_checkpointing: bool,
     output_dir: Path,
 ) -> TrainingRun:
@@ -149,6 +152,10 @@ def execute_sft_run(
     observed = sum(row.loss_tokens for row in schedule_rows)
     if observed != planned_loss_tokens:
         raise TrainingAdapterError("schedule effective loss tokens differ from declared plan")
+    if fixed_context_tokens < 1 or any(
+        len(row.input_ids) > fixed_context_tokens for row in schedule_rows
+    ):
+        raise TrainingAdapterError("schedule exceeds fixed context budget")
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "schedule.json").write_bytes(
         canonical_json_bytes(
@@ -158,6 +165,7 @@ def execute_sft_run(
                     {
                         "demonstration_id": row.demonstration_id,
                         "input_tokens": len(row.input_ids),
+                        "padded_input_tokens": fixed_context_tokens,
                         "loss_tokens": row.loss_tokens,
                     }
                     for row in schedule_rows
@@ -183,6 +191,7 @@ def execute_sft_run(
         if method in {"lora", "qlora"}:
             model.enable_input_require_grads()
     method_config["gradient_checkpointing"] = gradient_checkpointing
+    method_config["fixed_context_tokens"] = fixed_context_tokens
     arguments = TrainingArguments(
         output_dir=output_dir.as_posix(),
         max_steps=optimizer_steps,
@@ -207,7 +216,7 @@ def execute_sft_run(
         model=model,
         args=arguments,
         train_dataset=_dataset(schedule_rows),
-        data_collator=_collator(tokenizer),
+        data_collator=_collator(tokenizer, fixed_context_tokens=fixed_context_tokens),
     )
     with mlflow.start_run(run_name=run_id) as mlflow_run:
         mlflow.log_params(
@@ -218,6 +227,7 @@ def execute_sft_run(
                 "method": method,
                 "planned_loss_tokens": planned_loss_tokens,
                 "optimizer_steps": optimizer_steps,
+                "fixed_context_tokens": fixed_context_tokens,
             }
         )
         result = trainer.train()

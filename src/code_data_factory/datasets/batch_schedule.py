@@ -92,17 +92,23 @@ def build_equal_schedule(
         raise BatchScheduleError(
             "whole-example schedule cannot exactly match effective loss tokens; jointly downgrade or reject"
         )
+    fixed_context_tokens = max(
+        len(item.input_ids) for schedule in schedules.values() for item in schedule
+    )
     payload: dict[str, object] = {
         "kind": "equal-sft-batch-schedule",
         "batch_size": batch_size,
         "optimizer_steps": steps,
         "max_context_tokens": max_context_tokens,
+        "fixed_context_tokens": fixed_context_tokens,
         "effective_loss_tokens": totals["random"],
+        "padded_input_tokens_per_recipe": slots * fixed_context_tokens,
         "recipes": {
             name: [
                 {
                     "demonstration_id": item.demonstration_id,
                     "input_tokens": len(item.input_ids),
+                    "padded_input_tokens": fixed_context_tokens,
                     "loss_tokens": item.loss_tokens,
                 }
                 for item in rows
@@ -110,6 +116,7 @@ def build_equal_schedule(
             for name, rows in schedules.items()
         },
         "no_target_padding": True,
+        "equal_input_compute_budget": True,
         "complete_trajectory_only": True,
     }
     payload["schedule_sha256"] = sha256_bytes(canonical_json_bytes(payload))

@@ -123,6 +123,23 @@ def _run_interaction_probe(
         release_cuda_memory()
 
 
+def _planned_rows(
+    *, plan: dict[str, object], recipe: str, candidates: list[Any]
+) -> list[Any]:
+    recipes = plan.get("recipes")
+    entries = recipes.get(recipe) if isinstance(recipes, dict) else None
+    if not isinstance(entries, list):
+        raise CalibrationError("schedule lacks recipe entries")
+    by_id = {row.demonstration_id: row for row in candidates}
+    rows: list[Any] = []
+    for entry in entries:
+        demonstration_id = entry.get("demonstration_id") if isinstance(entry, dict) else None
+        if not isinstance(demonstration_id, str) or demonstration_id not in by_id:
+            raise CalibrationError("schedule recipe does not resolve to frozen examples")
+        rows.append(by_id[demonstration_id])
+    return rows
+
+
 def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]:
     """First select a viable method, then measure each equal-budget recipe once."""
     config = _load_config(config_path)
@@ -166,10 +183,13 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
         max_context_tokens=max_context,
         output_path=schedule_path,
     )
+    fixed_context_tokens = plan.get("fixed_context_tokens")
+    if not isinstance(fixed_context_tokens, int):
+        raise CalibrationError("schedule lacks fixed context token count")
     selection_attempts: list[dict[str, object]] = []
     selected_method: str | None = None
     selected_run: dict[str, object] | None = None
-    probe_rows = [random_rows[index % len(random_rows)] for index in range(batch_size * steps)]
+    probe_rows = _planned_rows(plan=plan, recipe="random", candidates=random_rows)
     for method in methods:
         attempt_dir = output_dir / "method-gate" / method
         try:
@@ -185,6 +205,7 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
                 planned_loss_tokens=sum(row.loss_tokens for row in probe_rows),
                 optimizer_steps=steps,
                 batch_size=batch_size,
+                fixed_context_tokens=fixed_context_tokens,
                 gradient_checkpointing=gradient_checkpointing,
                 output_dir=attempt_dir,
             )
@@ -234,15 +255,17 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
     effective_loss_tokens = plan.get("effective_loss_tokens")
     if not isinstance(effective_loss_tokens, int):
         raise CalibrationError("schedule lacks effective loss token count")
+    random_schedule_rows = _planned_rows(plan=plan, recipe="random", candidates=random_rows)
+    closed_schedule_rows = _planned_rows(plan=plan, recipe="closed_loop", candidates=closed_rows)
     recipe_runs: list[dict[str, object]] = []
     for name, rows in (
         (
             "SFT-RandomMatched",
-            [random_rows[index % len(random_rows)] for index in range(batch_size * steps)],
+            random_schedule_rows,
         ),
         (
             "SFT-ClosedLoop",
-            [closed_rows[index % len(closed_rows)] for index in range(batch_size * steps)],
+            closed_schedule_rows,
         ),
     ):
         started = time.monotonic()
@@ -259,6 +282,7 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
                 planned_loss_tokens=effective_loss_tokens,
                 optimizer_steps=steps,
                 batch_size=batch_size,
+                fixed_context_tokens=fixed_context_tokens,
                 gradient_checkpointing=gradient_checkpointing,
                 output_dir=output_dir / "recipes" / name,
             )
@@ -309,6 +333,8 @@ def run_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]
         "equal_effective_loss_tokens": effective_loss_tokens,
         "equal_optimizer_steps": steps,
         "batch_size": batch_size,
+        "fixed_context_tokens": fixed_context_tokens,
+        "equal_padded_input_tokens_per_recipe": plan["padded_input_tokens_per_recipe"],
         "gradient_checkpointing": gradient_checkpointing,
         "recipe_runs": recipe_runs,
         "interaction_runs": interaction_runs,
