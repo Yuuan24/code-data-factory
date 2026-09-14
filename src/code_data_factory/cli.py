@@ -222,11 +222,22 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
                 [],
             )
         runs = receipt.get("recipe_runs")
-        return _completed(
+        evidence_level = receipt.get("evidence_level")
+        if evidence_level != "EXECUTION_VALIDATED":
+            raise ValueError("completed calibration receipt lacks execution-validated evidence")
+        return CommandEnvelope(
             command,
             run_id,
-            [output / "method_selection.json", output / "manifest.json", output / "schedule.json"],
+            "COMPLETED",
+            evidence_level,
+            [
+                str(output / "method_selection.json"),
+                str(output / "manifest.json"),
+                str(output / "schedule.json"),
+            ],
             {"recipe_runs": len(runs) if isinstance(runs, list) else 0},
+            [],
+            [],
         )
     if parsed.command == ["compatibility", "check"]:
         if parsed.profile is None or parsed.mode is None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from code_data_factory import cli
 from code_data_factory.cli import EXIT_INPUT_ERROR, _resumed_build, main
 
 
@@ -18,6 +19,42 @@ def test_unknown_command_is_input_error(capsys: object) -> None:
     assert main(["--json", "invent"]) == EXIT_INPUT_ERROR
     captured = capsys.readouterr()  # type: ignore[attr-defined]
     assert json.loads(captured.out)["status"] == "INPUT_ERROR"
+
+
+def test_calibration_command_preserves_execution_validated_evidence(
+    tmp_path: Path, capsys: object, monkeypatch: object
+) -> None:
+    config = tmp_path / "calibration.yaml"
+    config.write_text("calibration_version: sft-calibration-v1\n", encoding="utf-8")
+
+    def completed_calibration(*, config_path: Path, output_dir: Path) -> dict[str, object]:
+        assert config_path == config
+        assert output_dir == tmp_path / "calibration"
+        return {
+            "terminal_status": "COMPLETED",
+            "evidence_level": "EXECUTION_VALIDATED",
+            "recipe_runs": [{"recipe": "random"}, {"recipe": "closed_loop"}],
+        }
+
+    monkeypatch.setattr(cli, "run_calibration", completed_calibration)  # type: ignore[attr-defined]
+    assert (
+        main(
+            [
+                "--json",
+                "--config",
+                str(config),
+                "--output-dir",
+                str(tmp_path / "calibration"),
+                "experiment",
+                "calibrate",
+            ]
+        )
+        == 0
+    )
+    envelope = json.loads(capsys.readouterr().out)
+    assert envelope["status"] == "COMPLETED"
+    assert envelope["evidence_level"] == "EXECUTION_VALIDATED"
+    assert envelope["counts"] == {"recipe_runs": 2}
 
 
 def test_data_build_resume_rejects_a_completed_receipt_with_different_identity(
