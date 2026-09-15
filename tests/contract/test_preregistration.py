@@ -32,7 +32,7 @@ def _calibration(tmp_path: Path) -> Path:
 
 
 def _config(tmp_path: Path) -> Path:
-    source = Path("configs/experiments/sft-main.yaml")
+    source = Path(__file__).resolve().parents[2] / "configs/experiments/sft-main.yaml"
     destination = tmp_path / source.name
     shutil.copyfile(source, destination)
     return destination
