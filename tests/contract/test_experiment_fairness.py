@@ -41,7 +41,12 @@ def _plan(*, preregistration_sha256: str, status: ExperimentStatus) -> Experimen
         planned_optimizer_steps=2,
         input_compute_budget="two bf16 steps",
         evaluation_version="ToolTaskBench-v1",
+        matching={"tolerance": "exact"},
+        tool_protocol={"suite": "ToolTaskBench-v1"},
+        exposure_budget={"formal_training_runs": 6},
+        test_unlock_rule={"enabled": False, "single_use": True},
         guardrails={"max_regression": 0.02},
+        calibration_manifest_sha256="d" * 64,
         preregistration_sha256=preregistration_sha256,
         status=status,
     )

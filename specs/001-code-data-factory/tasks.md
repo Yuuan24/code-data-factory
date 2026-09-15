@@ -212,7 +212,7 @@ T103–T108 是本次新增、尚未执行的工作。原研究中的 Toucan 审
 - [X] T074 [US4] 在 `src/code_data_factory/datasets/batch_schedule.py` 构建完整轨迹/完整目标的确定性批次清单，精确匹配两配方有效损失词元/步数/批次形状/上下文；不靠尾部补目标词元，无法整数匹配则共同降档或拒绝。（依赖：T073）
 - [X] T075 [US4] 按 `configs/experiments/calibration.yaml` 执行单卡模型/方法可行性门禁并保存 `artifacts/experiments/calibration/method_selection.json`，全参数→LoRA→QLoRA 首个通过者统一采用，检查反向传播、至少 10% 显存余量、有限损失、保存重载和预算。（依赖：T074）
 - [X] T076 [US4] 运行两配方各一次单种子校准，保存 `artifacts/experiments/calibration/manifest.json`，核验等词元/步数、交互评测、吞吐与六次成本预测及 15% 储备；不以校准分数选择方法或正式超参数。（依赖：T075）
-- [ ] T077 [US4] 在 `src/code_data_factory/evaluation/preregister.py`、`configs/experiments/sft-main.yaml` 固定目标差异、匹配容差、三种子、模型/方法/工具/模板、曝光预算、test 解锁和判定阈值；核对至少 20 统计组及 10000 次固定种子重采样，接入 `experiment calibrate/preregister/run` 命令。（依赖：T076）
+- [X] T077 [US4] 在 `src/code_data_factory/evaluation/preregister.py`、`configs/experiments/sft-main.yaml` 固定目标差异、匹配容差、三种子、模型/方法/工具/模板、曝光预算、test 解锁和判定阈值；核对至少 20 统计组及 10000 次固定种子重采样，接入 `experiment calibrate/preregister/run` 命令。（依赖：T076）
 - [ ] T078 [US4] 复核两个视图的外部来源/修复链与无自采样混入，发布实际数据视图、批次和匹配报告并冻结 `artifacts/experiments/sft-main/experiment_plan.json`，验证报价/总预算、全部依赖及当前模型版本一致；模型备选切换时按下述“版本失效规则”重新建立相关证据后才能登记。（依赖：T047、T077）
 - [ ] T079 [US4] 执行 RandomMatched/ClosedLoop 各种子 17/29/43 共六次正式 SFT，保存 `artifacts/experiments/sft-main/training/` 的参数更新、检查点、词元/步数、日志、费用和全部终态；失败保留并标未达训练门禁，不筛选有利种子。（依赖：T078）
 - [ ] T080 [US4] 数据/方法冻结后，对六次有效训练模型运行项目与 BFCL 固定最终测试，保存 `artifacts/evaluations/formal-test/`；每轮真实执行工具、固定分母和重试、外部分项与协议偏离分别报告。（依赖：T079）

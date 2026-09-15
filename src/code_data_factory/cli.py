@@ -25,6 +25,10 @@ from code_data_factory.datasets.recipes import build_recipe_drafts
 from code_data_factory.evaluation.findings import build_findings
 from code_data_factory.evaluation.interactive import run_evaluation
 from code_data_factory.evaluation.local_model import LocalTransformersExecutor
+from code_data_factory.evaluation.preregister import (
+    preregister_experiment,
+    validate_preregistered_run_request,
+)
 from code_data_factory.evaluation.suites import build_tool_task_suite
 from code_data_factory.interaction.environment import check_environment
 from code_data_factory.interaction.local_sampler import LocalSamplerError, run_local_sampling_probe
@@ -105,6 +109,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--actions", type=Path)
     parser.add_argument("--split", choices=("DEVELOPMENT", "TEST"), default="DEVELOPMENT")
     parser.add_argument("--test-unlock", type=Path)
+    parser.add_argument("--calibration", type=Path)
+    parser.add_argument("--plan", type=Path)
+    parser.add_argument("--recipe")
+    parser.add_argument("--seed", type=int)
     parser.add_argument("command", nargs="*")
     return parser
 
@@ -239,6 +247,33 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
             [],
             [],
         )
+    if parsed.command == ["experiment", "preregister"]:
+        if parsed.config is None or parsed.calibration is None:
+            raise ValueError("experiment preregister requires --config and --calibration")
+        receipt = preregister_experiment(
+            config_path=parsed.config, calibration_path=parsed.calibration, output_dir=output
+        )
+        return CommandEnvelope(
+            command,
+            run_id,
+            "COMPLETED",
+            "SOFTWARE_VALIDATED",
+            [str(output / "experiment_plan.json"), str(output / "preregistration_receipt.json")],
+            {
+                "training_runs": 6,
+                "minimum_connected_groups": 20,
+                "paired_bootstrap_resamples": 10000,
+            },
+            ["final test remains locked"],
+            [],
+        )
+    if parsed.command == ["experiment", "run"]:
+        if parsed.plan is None or parsed.recipe is None or parsed.seed is None:
+            raise ValueError("experiment run requires --plan, --recipe, and --seed")
+        validate_preregistered_run_request(
+            plan_path=parsed.plan, recipe=parsed.recipe, seed=parsed.seed
+        )
+        raise ValueError("experiment run is registered but formal training execution is implemented in T079")
     if parsed.command == ["compatibility", "check"]:
         if parsed.profile is None or parsed.mode is None:
             raise ValueError("compatibility check requires --profile and --mode")

@@ -55,7 +55,12 @@ class ExperimentPlan(BaseModel):
     planned_optimizer_steps: int = Field(gt=0)
     input_compute_budget: str = Field(min_length=1)
     evaluation_version: str = Field(min_length=1)
+    matching: dict[str, Any] = Field(min_length=1)
+    tool_protocol: dict[str, Any] = Field(min_length=1)
+    exposure_budget: dict[str, Any] = Field(min_length=1)
+    test_unlock_rule: dict[str, Any] = Field(min_length=1)
     guardrails: dict[str, Any] = Field(min_length=1)
+    calibration_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     preregistration_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     status: ExperimentStatus = ExperimentStatus.DRAFT
 
@@ -109,7 +114,12 @@ class ExperimentPlan(BaseModel):
             "planned_optimizer_steps": self.planned_optimizer_steps,
             "input_compute_budget": self.input_compute_budget,
             "evaluation_version": self.evaluation_version,
+            "matching": self.matching,
+            "tool_protocol": self.tool_protocol,
+            "exposure_budget": self.exposure_budget,
+            "test_unlock_rule": self.test_unlock_rule,
             "guardrails": self.guardrails,
+            "calibration_manifest_sha256": self.calibration_manifest_sha256,
         }
 
     @property

@@ -1,0 +1,73 @@
+preregistration_version: sft-main-preregister-v1
+experiment_id: sft-main
+revision: 1
+hypothesis: ClosedLoop improves ToolTaskBench-v1 TaskSuccess@1 over RandomMatched through development-failure coverage alone.
+target_data_difference: development failure-type coverage only; source-observable matching fields remain equal.
+candidate_pool_version: external-training-view-v1-df1357c347293eb52e0984751bfc0cf4f5eeeb3f831a1ad36f8e05282b024d84
+evaluation_version: ToolTaskBench-v1/tool-tasks-v1 plus frozen BFCL-V4 local subset
+recipes:
+  - SFT-RandomMatched
+  - SFT-ClosedLoop
+seeds: [17, 29, 43]
+model:
+  model_id: Qwen/Qwen3-8B
+  model_revision: b968826d9c46dd6066d109eabc6255188de91218
+  tokenizer_revision: b968826d9c46dd6066d109eabc6255188de91218
+  template_sha256: a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8
+  thinking_mode: disabled
+method: lora
+# The selected-method receipt from the exact T076 calibration is bound at registration time.
+schedule:
+  batch_shape:
+    per_device_batch_size: 1
+    gradient_accumulation_steps: 1
+    max_context_tokens: 2560
+    precision: bf16
+  planned_loss_tokens: 1793
+  optimizer_steps: 3
+  input_compute_budget: 3 bf16 steps at batch size 1, fixed 2560-token context, gradient checkpointing enabled.
+matching:
+  target_intervention: development failure-type coverage
+  fields: [source_id, task_family, dependency_depth, length_bin, verification_strength, baseline_difficulty]
+  tolerance: exact
+  excluded_fields: [failure_types]
+  failure_action: jointly downgrade both recipes or reject the plan
+tool_protocol:
+  suite_id: ToolTaskBench-v1
+  suite_version: tool-tasks-v1
+  tools: [search_documents, read_document, calculate, convert]
+  max_model_calls_per_task: 4
+  max_completion_tokens_per_task: 128
+  one_infrastructure_retry: true
+exposure_budget:
+  formal_training_runs: 6
+  recipe_seed_matrix: 2 recipes x 3 seeds
+  completed_whole_trajectory_only: true
+  equal_effective_loss_tokens: true
+  equal_optimizer_steps: true
+  equal_input_compute_budget: true
+  failure_reserve_fraction: 0.15
+  current_cash_quote_required_before_start: true
+  gpu_cash_soft_ceiling_cny: 5000
+  gpu_cash_hard_ceiling_cny: 10000
+test_unlock_rule:
+  enabled: false
+  single_use: true
+  requires: [T078_released_sft_views, T078_equal_schedule, T078_current_cash_quote, plan_hash_match]
+  final_test_visibility: independent_evaluation_role_only
+analysis:
+  comparison: ClosedLoop minus RandomMatched
+  metric: TaskSuccess@1
+  group_key: source-template connected group
+  minimum_connected_groups: 20
+  paired_bootstrap_resamples: 10000
+  paired_bootstrap_seed: 20260915
+  confidence_interval: 95_percentile
+  practical_effect_pp: 2.0
+  insufficient_groups_action: descriptive_only_no_confirmatory_attribution
+guardrails:
+  external_bfcl_regression_pp_max: 2.0
+  unseen_combination_regression_pp_max: 2.0
+  recovery_slice_regression_pp_max: 2.0
+  constraint_violation_increase_pp_max: 1.0
+  positive_requires: [mean_at_least_2pp, ci_lower_above_zero, all_six_runs_complete, equal_budget_passed, no_guardrail_regression]
