@@ -9,7 +9,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from code_data_factory import cli
-from code_data_factory.contracts.artifacts import sha256_file
+from code_data_factory.contracts.artifacts import canonical_json_bytes, sha256_bytes, sha256_file
 from code_data_factory.contracts.experiments import ExperimentPlan
 from code_data_factory.evaluation.freeze import FormalizationError, freeze_formal_experiment
 from code_data_factory.evaluation.preregister import preregister_experiment
@@ -167,6 +167,42 @@ def test_freeze_publishes_equal_external_views_and_revisions_plan(tmp_path: Path
         pq.read_table(output / "views" / "SFT-RandomMatched" / "training_examples.parquet").num_rows
         == 3
     )
+
+
+def test_freeze_accepts_preformalization_preregistration_hash(tmp_path: Path) -> None:
+    config, calibration, plan_path = _preregistered(tmp_path)
+    legacy = json.loads(plan_path.read_text(encoding="utf-8"))
+    legacy.pop("formalization")
+    legacy["preregistration_sha256"] = sha256_bytes(
+        canonical_json_bytes(
+            {
+                key: value
+                for key, value in legacy.items()
+                if key not in {"preregistration_sha256", "status"}
+            }
+        )
+    )
+    plan_path.write_bytes(canonical_json_bytes(legacy))
+    legacy_plan = ExperimentPlan.model_validate_json(plan_path.read_text(encoding="utf-8"))
+    assert legacy_plan.preregistration_sha256 == legacy_plan.frozen_conditions_sha256
+
+    membership, recipe, sft_view, quote = _inputs(tmp_path)
+    output = tmp_path / "frozen"
+    freeze_formal_experiment(
+        plan_path=plan_path,
+        config_path=config,
+        calibration_path=calibration,
+        sft_view_path=sft_view,
+        membership_path=membership,
+        recipe_path=recipe,
+        price_quote_path=quote,
+        output_dir=output,
+    )
+    plan = ExperimentPlan.model_validate_json(
+        (output / "experiment_plan.json").read_text(encoding="utf-8")
+    )
+    assert plan.formalization is not None
+    assert plan.preregistration_sha256 == plan.frozen_conditions_sha256
 
 
 def test_freeze_rejects_sft_view_with_different_model_revision(tmp_path: Path) -> None:

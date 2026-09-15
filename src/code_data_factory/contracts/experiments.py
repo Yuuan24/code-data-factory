@@ -99,7 +99,7 @@ class ExperimentPlan(BaseModel):
 
     @property
     def frozen_conditions(self) -> dict[str, Any]:
-        return {
+        conditions = {
             "experiment_id": self.experiment_id,
             "revision": self.revision,
             "hypothesis": self.hypothesis,
@@ -121,8 +121,10 @@ class ExperimentPlan(BaseModel):
             "test_unlock_rule": self.test_unlock_rule,
             "guardrails": self.guardrails,
             "calibration_manifest_sha256": self.calibration_manifest_sha256,
-            "formalization": self.formalization,
         }
+        if self.formalization is not None:
+            conditions["formalization"] = self.formalization
+        return conditions
 
     @property
     def frozen_conditions_sha256(self) -> str:
