@@ -1,9 +1,10 @@
 preregistration_version: sft-main-preregister-v1
 experiment_id: sft-main
-revision: 1
+revision: 3
 hypothesis: ClosedLoop improves ToolTaskBench-v1 TaskSuccess@1 over RandomMatched through development-failure coverage alone.
-target_data_difference: development failure-type coverage only; source-observable matching fields remain equal.
-candidate_pool_version: external-training-view-v1-df1357c347293eb52e0984751bfc0cf4f5eeeb3f831a1ad36f8e05282b024d84
+target_data_difference: development-failure-type coverage only; source-observable matching fields remain equal.
+candidate_pool_version: 17bf4731dd7b510e8d8fa5c7a8a324d4f2e3f8ef842070d251271d6cc88a9a91
+training_template_version: qwen3-chat-template-a55ee1b1
 evaluation_version: ToolTaskBench-v1/tool-tasks-v1 plus frozen BFCL-V4 local subset
 recipes:
   - SFT-RandomMatched
@@ -26,8 +27,17 @@ schedule:
   planned_loss_tokens: 1793
   optimizer_steps: 3
   input_compute_budget: 3 bf16 steps at batch size 1, fixed 2560-token context, gradient checkpointing enabled.
+formal_recipe_views:
+  random_matched:
+    - toucan-import:7a96ca26-d68a-5572-b735-3f131d1546a5
+    - toucan-import:3a0b2b58-a834-5d86-8feb-828544b5e430
+    - toucan-import:ae86fdc5-ecde-52ef-b494-2d3f80555774
+  closed_loop:
+    - toucan-import:0cf84c4e-3bef-5d3e-87f6-8981fbef57a2
+    - toucan-import:5e8b35d3-7b88-572c-8b8b-502901c86491
+    - toucan-import:baf41d1a-6568-5440-a10d-b4fa1d8b40d4
 matching:
-  target_intervention: development failure-type coverage
+  target_intervention: development-failure-type coverage
   fields: [source_id, task_family, dependency_depth, length_bin, verification_strength, baseline_difficulty]
   tolerance: exact
   excluded_fields: [failure_types]

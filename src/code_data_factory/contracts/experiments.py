@@ -61,6 +61,7 @@ class ExperimentPlan(BaseModel):
     test_unlock_rule: dict[str, Any] = Field(min_length=1)
     guardrails: dict[str, Any] = Field(min_length=1)
     calibration_manifest_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    formalization: dict[str, Any] | None = None
     preregistration_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     status: ExperimentStatus = ExperimentStatus.DRAFT
 
@@ -120,6 +121,7 @@ class ExperimentPlan(BaseModel):
             "test_unlock_rule": self.test_unlock_rule,
             "guardrails": self.guardrails,
             "calibration_manifest_sha256": self.calibration_manifest_sha256,
+            "formalization": self.formalization,
         }
 
     @property

@@ -23,6 +23,7 @@ from code_data_factory.datasets.feedback import build_data_actions
 from code_data_factory.datasets.publish import PublicationGateError, publish_dataset
 from code_data_factory.datasets.recipes import build_recipe_drafts
 from code_data_factory.evaluation.findings import build_findings
+from code_data_factory.evaluation.freeze import freeze_formal_experiment
 from code_data_factory.evaluation.interactive import run_evaluation
 from code_data_factory.evaluation.local_model import LocalTransformersExecutor
 from code_data_factory.evaluation.preregister import (
@@ -113,6 +114,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plan", type=Path)
     parser.add_argument("--recipe")
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--sft-view", type=Path)
+    parser.add_argument("--membership", type=Path)
+    parser.add_argument("--recipe-drafts", type=Path)
+    parser.add_argument("--price-quote", type=Path)
     parser.add_argument("command", nargs="*")
     return parser
 
@@ -274,6 +279,11 @@ def _execute(parsed: argparse.Namespace, run_id: str) -> CommandEnvelope:
             plan_path=parsed.plan, recipe=parsed.recipe, seed=parsed.seed
         )
         raise ValueError("experiment run is registered but formal training execution is implemented in T079")
+    if parsed.command == ["experiment", "freeze"]:
+        if any(value is None for value in (parsed.plan, parsed.config, parsed.calibration, parsed.sft_view, parsed.membership, parsed.recipe_drafts, parsed.price_quote)):
+            raise ValueError("experiment freeze requires --plan, --config, --calibration, --sft-view, --membership, --recipe-drafts, and --price-quote")
+        receipt = freeze_formal_experiment(plan_path=parsed.plan, config_path=parsed.config, calibration_path=parsed.calibration, sft_view_path=parsed.sft_view, membership_path=parsed.membership, recipe_path=parsed.recipe_drafts, price_quote_path=parsed.price_quote, output_dir=output)
+        return CommandEnvelope(command, run_id, "COMPLETED", "SOFTWARE_VALIDATED", [str(output / "experiment_plan.json"), str(output / "schedule.json"), str(output / "matching_report.json"), str(output / "freeze_receipt.json")], {"formal_views": 2, "training_runs": 6}, ["final test remains locked"], [])
     if parsed.command == ["compatibility", "check"]:
         if parsed.profile is None or parsed.mode is None:
             raise ValueError("compatibility check requires --profile and --mode")
